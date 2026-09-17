@@ -69,7 +69,7 @@ fun NalamaCompanionBanner(
                         modifier = Modifier.padding(3.dp)
                     ) {
                         Image(
-                            painter = painterResource(id = R.drawable.ic_nalama_logo),
+                            painter = painterResource(id = R.drawable.img_nalama_logo),
                             contentDescription = "Nalama Health Data Companion Logo",
                             modifier = Modifier.size(40.dp)
                         )

@@ -115,7 +115,7 @@ class MainActivity : ComponentActivity() {
                                                     modifier = Modifier.padding(2.dp)
                                                 ) {
                                                     Image(
-                                                        painter = painterResource(id = R.drawable.ic_nalama_logo),
+                                                        painter = painterResource(id = R.drawable.img_nalama_logo),
                                                         contentDescription = "Nalama Health Data Companion Logo",
                                                         modifier = Modifier.size(32.dp)
                                                     )
