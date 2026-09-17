@@ -34,145 +34,253 @@ class GoogleAppsScriptWebhookClient {
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
         /**
-         * Ready-to-use Google Apps Script code for Google Drive / Google Sheets.
-         * Handles both Health Connect Biometrics and Hevy Gym Workouts!
+         * Clean function-body snippet designed to paste directly inside Google's default:
+         * function myFunction() {
+         *   [PASTE HERE]
+         * }
+         *
+         * It delegates myFunction to handleWebhook, defines doPost(e) and doGet(e),
+         * and completes smoothly with zero syntax errors.
+         * Formatted with strict 2-space indentation and UNIX newlines (\n) to prevent
+         * mobile auto-indent expansion and line-wrap spacing issues.
          */
-        val SAMPLE_APPS_SCRIPT_CODE = """
-            /**
-             * Google Apps Script Webhook Handler for Health Connect & Hevy Gym Sync
-             * Target Folder Structure:
-             * My Drive /
-             *   └── nalama.family/
-             *        └── imports/
-             *             ├── health_data/  (biometrics_daily.json / *.csv)
-             *             └── gym_workouts/ (hevy_workouts.json / *.csv)
-             */
-            function doPost(e) {
-              try {
-                if (!e || !e.postData || !e.postData.contents) {
-                  return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "No post data received" }))
-                    .setMimeType(ContentService.MimeType.JSON);
-                }
+        val MY_FUNCTION_APPS_SCRIPT_CONTENT = listOf(
+            "  return handleWebhook(arguments[0]);",
+            "}",
+            "",
+            "function doPost(e) {",
+            "  return handleWebhook(e);",
+            "}",
+            "",
+            "function doGet(e) {",
+            "  return ContentService.createTextOutput(JSON.stringify({ status: \"active\", message: \"Nalama Webhook is running\" }))",
+            "    .setMimeType(ContentService.MimeType.JSON);",
+            "}",
+            "",
+            "function handleWebhook(e) {",
+            "  try {",
+            "    if (!e || !e.postData || !e.postData.contents) {",
+            "      return ContentService.createTextOutput(JSON.stringify({ status: \"error\", message: \"No post data received\" }))",
+            "        .setMimeType(ContentService.MimeType.JSON);",
+            "    }",
+            "",
+            "    var payload = JSON.parse(e.postData.contents);",
+            "    var sourceApp = payload.sourceApp || \"HealthConnect\";",
+            "    var folderPath = payload.folderPath || (sourceApp === \"Hevy\" ? \"nalama.family/imports/gym_workouts\" : \"nalama.family/imports/health_data\");",
+            "    var format = payload.format || \"csv\";",
+            "    var writeMode = payload.writeMode || \"append\";",
+            "    var fileName = payload.fileName || (sourceApp === \"Hevy\" ? \"hevy_workouts\" : \"biometrics_daily\");",
+            "",
+            "    var folder = DriveApp.getRootFolder();",
+            "    var parts = folderPath.split(\"/\");",
+            "    for (var i = 0; i < parts.length; i++) {",
+            "      var name = parts[i].trim();",
+            "      if (!name) continue;",
+            "      var sub = folder.getFoldersByName(name);",
+            "      folder = sub.hasNext() ? sub.next() : folder.createFolder(name);",
+            "    }",
+            "",
+            "    var filesUpdated = [];",
+            "",
+            "    if (format === \"csv\" || format === \"both\") {",
+            "      var csvName = fileName + \".csv\";",
+            "      var csvFiles = folder.getFilesByName(csvName);",
+            "      if (csvFiles.hasNext() && writeMode === \"append\") {",
+            "        var cf = csvFiles.next();",
+            "        var lines = (payload.csvData || \"\").trim().split(\"\\n\");",
+            "        var toAppend = lines.slice(1).join(\"\\n\");",
+            "        if (toAppend.length > 0) {",
+            "          cf.setContent(cf.getBlob().getDataAsString() + \"\\n\" + toAppend);",
+            "        }",
+            "        filesUpdated.push(csvName + \" (appended)\");",
+            "      } else if (csvFiles.hasNext()) {",
+            "        csvFiles.next().setContent(payload.csvData || \"\");",
+            "        filesUpdated.push(csvName + \" (overwritten)\");",
+            "      } else {",
+            "        folder.createFile(csvName, payload.csvData || \"\", MimeType.CSV);",
+            "        filesUpdated.push(csvName + \" (created)\");",
+            "      }",
+            "    }",
+            "",
+            "    if (format === \"json\" || format === \"both\") {",
+            "      var jsonName = fileName + \".json\";",
+            "      var jsonFiles = folder.getFilesByName(jsonName);",
+            "      var jsonStr = typeof payload.jsonData === \"string\" ? payload.jsonData : JSON.stringify(payload.jsonData, null, 2);",
+            "",
+            "      if (jsonFiles.hasNext() && writeMode === \"append\") {",
+            "        var jf = jsonFiles.next();",
+            "        try {",
+            "          var old = JSON.parse(jf.getBlob().getDataAsString());",
+            "          if (sourceApp === \"Hevy\" && old.workouts && payload.jsonData && payload.jsonData.workouts) {",
+            "            var existingIds = new Set(old.workouts.map(function(w) { return w.workoutId; }));",
+            "            payload.jsonData.workouts.forEach(function(w) {",
+            "              if (!existingIds.has(w.workoutId)) old.workouts.push(w);",
+            "            });",
+            "            old.syncedAt = payload.syncedAt || new Date().toISOString();",
+            "            jf.setContent(JSON.stringify(old, null, 2));",
+            "          } else if (old.dailyRecords && payload.jsonData && payload.jsonData.dailyRecords) {",
+            "            var existingDates = new Set(old.dailyRecords.map(function(r) { return r.date; }));",
+            "            payload.jsonData.dailyRecords.forEach(function(rec) {",
+            "              if (!existingDates.has(rec.date)) old.dailyRecords.push(rec);",
+            "            });",
+            "            old.exportedAt = payload.exportedAt;",
+            "            jf.setContent(JSON.stringify(old, null, 2));",
+            "          } else {",
+            "            jf.setContent(jsonStr);",
+            "          }",
+            "        } catch (err) {",
+            "          jf.setContent(jsonStr);",
+            "        }",
+            "        filesUpdated.push(jsonName + \" (appended)\");",
+            "      } else if (jsonFiles.hasNext()) {",
+            "        jsonFiles.next().setContent(jsonStr);",
+            "        filesUpdated.push(jsonName + \" (overwritten)\");",
+            "      } else {",
+            "        folder.createFile(jsonName, jsonStr, MimeType.PLAIN_TEXT);",
+            "        filesUpdated.push(jsonName + \" (created)\");",
+            "      }",
+            "    }",
+            "",
+            "    return ContentService.createTextOutput(JSON.stringify({",
+            "      status: \"success\",",
+            "      sourceApp: sourceApp,",
+            "      message: \"Export processed successfully\",",
+            "      folder: folderPath,",
+            "      files: filesUpdated,",
+            "      recordsCount: payload.recordsCount || 1",
+            "    })).setMimeType(ContentService.MimeType.JSON);",
+            "",
+            "  } catch (err) {",
+            "    return ContentService.createTextOutput(JSON.stringify({",
+            "      status: \"error\",",
+            "      message: err.toString()",
+            "    })).setMimeType(ContentService.MimeType.JSON);",
+            "  }"
+        ).joinToString("\n")
 
-                var payload = JSON.parse(e.postData.contents);
-                var sourceApp = payload.sourceApp || "HealthConnect";
-                var folderPath = payload.folderPath || (sourceApp === "Hevy" ? "nalama.family/imports/gym_workouts" : "nalama.family/imports/health_data");
-                var format = payload.format || "csv"; // "csv", "json", or "both"
-                var writeMode = payload.writeMode || "append"; // "append" or "overwrite"
-                var fileName = payload.fileName || (sourceApp === "Hevy" ? "hevy_workouts" : "biometrics_daily");
-                var jsonData = payload.jsonData;
-                var csvData = payload.csvData;
+        /**
+         * Full standalone Code.gs script for users who prefer to clear the entire editor.
+         */
+        val FULL_APPS_SCRIPT_CODE = listOf(
+            "/**",
+            " * Google Apps Script Webhook Handler for Health Connect & Hevy Gym Sync",
+            " * Target Folder: My Drive / nalama.family / imports / ...",
+            " */",
+            "function doPost(e) {",
+            "  return handleWebhook(e);",
+            "}",
+            "",
+            "function doGet(e) {",
+            "  return ContentService.createTextOutput(JSON.stringify({ status: \"active\", message: \"Nalama Webhook is running\" }))",
+            "    .setMimeType(ContentService.MimeType.JSON);",
+            "}",
+            "",
+            "function handleWebhook(e) {",
+            "  try {",
+            "    if (!e || !e.postData || !e.postData.contents) {",
+            "      return ContentService.createTextOutput(JSON.stringify({ status: \"error\", message: \"No post data received\" }))",
+            "        .setMimeType(ContentService.MimeType.JSON);",
+            "    }",
+            "",
+            "    var payload = JSON.parse(e.postData.contents);",
+            "    var sourceApp = payload.sourceApp || \"HealthConnect\";",
+            "    var folderPath = payload.folderPath || (sourceApp === \"Hevy\" ? \"nalama.family/imports/gym_workouts\" : \"nalama.family/imports/health_data\");",
+            "    var format = payload.format || \"csv\";",
+            "    var writeMode = payload.writeMode || \"append\";",
+            "    var fileName = payload.fileName || (sourceApp === \"Hevy\" ? \"hevy_workouts\" : \"biometrics_daily\");",
+            "",
+            "    var folder = DriveApp.getRootFolder();",
+            "    var parts = folderPath.split(\"/\");",
+            "    for (var i = 0; i < parts.length; i++) {",
+            "      var name = parts[i].trim();",
+            "      if (!name) continue;",
+            "      var sub = folder.getFoldersByName(name);",
+            "      folder = sub.hasNext() ? sub.next() : folder.createFolder(name);",
+            "    }",
+            "",
+            "    var filesUpdated = [];",
+            "",
+            "    if (format === \"csv\" || format === \"both\") {",
+            "      var csvName = fileName + \".csv\";",
+            "      var csvFiles = folder.getFilesByName(csvName);",
+            "      if (csvFiles.hasNext() && writeMode === \"append\") {",
+            "        var cf = csvFiles.next();",
+            "        var lines = (payload.csvData || \"\").trim().split(\"\\n\");",
+            "        var toAppend = lines.slice(1).join(\"\\n\");",
+            "        if (toAppend.length > 0) {",
+            "          cf.setContent(cf.getBlob().getDataAsString() + \"\\n\" + toAppend);",
+            "        }",
+            "        filesUpdated.push(csvName + \" (appended)\");",
+            "      } else if (csvFiles.hasNext()) {",
+            "        csvFiles.next().setContent(payload.csvData || \"\");",
+            "        filesUpdated.push(csvName + \" (overwritten)\");",
+            "      } else {",
+            "        folder.createFile(csvName, payload.csvData || \"\", MimeType.CSV);",
+            "        filesUpdated.push(csvName + \" (created)\");",
+            "      }",
+            "    }",
+            "",
+            "    if (format === \"json\" || format === \"both\") {",
+            "      var jsonName = fileName + \".json\";",
+            "      var jsonFiles = folder.getFilesByName(jsonName);",
+            "      var jsonStr = typeof payload.jsonData === \"string\" ? payload.jsonData : JSON.stringify(payload.jsonData, null, 2);",
+            "",
+            "      if (jsonFiles.hasNext() && writeMode === \"append\") {",
+            "        var jf = jsonFiles.next();",
+            "        try {",
+            "          var old = JSON.parse(jf.getBlob().getDataAsString());",
+            "          if (sourceApp === \"Hevy\" && old.workouts && payload.jsonData && payload.jsonData.workouts) {",
+            "            var existingIds = new Set(old.workouts.map(function(w) { return w.workoutId; }));",
+            "            payload.jsonData.workouts.forEach(function(w) {",
+            "              if (!existingIds.has(w.workoutId)) old.workouts.push(w);",
+            "            });",
+            "            old.syncedAt = payload.syncedAt || new Date().toISOString();",
+            "            jf.setContent(JSON.stringify(old, null, 2));",
+            "          } else if (old.dailyRecords && payload.jsonData && payload.jsonData.dailyRecords) {",
+            "            var existingDates = new Set(old.dailyRecords.map(function(r) { return r.date; }));",
+            "            payload.jsonData.dailyRecords.forEach(function(rec) {",
+            "              if (!existingDates.has(rec.date)) old.dailyRecords.push(rec);",
+            "            });",
+            "            old.exportedAt = payload.exportedAt;",
+            "            jf.setContent(JSON.stringify(old, null, 2));",
+            "          } else {",
+            "            jf.setContent(jsonStr);",
+            "          }",
+            "        } catch (err) {",
+            "          jf.setContent(jsonStr);",
+            "        }",
+            "        filesUpdated.push(jsonName + \" (appended)\");",
+            "      } else if (jsonFiles.hasNext()) {",
+            "        jsonFiles.next().setContent(jsonStr);",
+            "        filesUpdated.push(jsonName + \" (overwritten)\");",
+            "      } else {",
+            "        folder.createFile(jsonName, jsonStr, MimeType.PLAIN_TEXT);",
+            "        filesUpdated.push(jsonName + \" (created)\");",
+            "      }",
+            "    }",
+            "",
+            "    return ContentService.createTextOutput(JSON.stringify({",
+            "      status: \"success\",",
+            "      sourceApp: sourceApp,",
+            "      message: \"Export processed successfully\",",
+            "      folder: folderPath,",
+            "      files: filesUpdated,",
+            "      recordsCount: payload.recordsCount || 1",
+            "    })).setMimeType(ContentService.MimeType.JSON);",
+            "",
+            "  } catch (err) {",
+            "    return ContentService.createTextOutput(JSON.stringify({",
+            "      status: \"error\",",
+            "      message: err.toString()",
+            "    })).setMimeType(ContentService.MimeType.JSON);",
+            "  }",
+            "}"
+        ).joinToString("\n")
 
-                // 1. Resolve or create target folder in Google Drive
-                var folder = getOrCreateFolderHierarchy(folderPath);
-
-                // 2. Export based on format
-                var filesUpdated = [];
-
-                if (format === "csv" || format === "both") {
-                  var csvFileName = fileName + ".csv";
-                  var existingCsv = folder.getFilesByName(csvFileName);
-                  if (existingCsv.hasNext() && writeMode === "append") {
-                    var file = existingCsv.next();
-                    var existingContent = file.getBlob().getDataAsString();
-                    // Append new csv rows (strip header from new csvData if already present)
-                    var lines = csvData.trim().split("\n");
-                    var contentToAppend = lines.slice(1).join("\n");
-                    if (contentToAppend.length > 0) {
-                      file.setContent(existingContent + "\n" + contentToAppend);
-                    }
-                    filesUpdated.push(csvFileName + " (appended)");
-                  } else {
-                    if (existingCsv.hasNext()) {
-                      existingCsv.next().setContent(csvData);
-                      filesUpdated.push(csvFileName + " (overwritten)");
-                    } else {
-                      folder.createFile(csvFileName, csvData, MimeType.CSV);
-                      filesUpdated.push(csvFileName + " (created)");
-                    }
-                  }
-                }
-
-                if (format === "json" || format === "both") {
-                  var jsonFileName = fileName + ".json";
-                  var existingJson = folder.getFilesByName(jsonFileName);
-                  var jsonStr = typeof jsonData === "string" ? jsonData : JSON.stringify(jsonData, null, 2);
-
-                  if (existingJson.hasNext() && writeMode === "append") {
-                    var jsonFile = existingJson.next();
-                    try {
-                      var oldObj = JSON.parse(jsonFile.getBlob().getDataAsString());
-                      if (sourceApp === "Hevy" && oldObj.workouts && payload.jsonData && payload.jsonData.workouts) {
-                        // Merge Hevy workouts by workoutId
-                        var existingIds = new Set(oldObj.workouts.map(function(w){ return w.workoutId; }));
-                        payload.jsonData.workouts.forEach(function(w) {
-                          if (!existingIds.has(w.workoutId)) {
-                            oldObj.workouts.push(w);
-                          }
-                        });
-                        oldObj.syncedAt = payload.syncedAt || new Date().toISOString();
-                        jsonFile.setContent(JSON.stringify(oldObj, null, 2));
-                      } else if (oldObj.dailyRecords && payload.jsonData && payload.jsonData.dailyRecords) {
-                        // Merge Health Connect daily records
-                        var existingDates = new Set(oldObj.dailyRecords.map(function(r){ return r.date; }));
-                        payload.jsonData.dailyRecords.forEach(function(rec) {
-                          if (!existingDates.has(rec.date)) {
-                            oldObj.dailyRecords.push(rec);
-                          }
-                        });
-                        oldObj.exportedAt = payload.exportedAt;
-                        jsonFile.setContent(JSON.stringify(oldObj, null, 2));
-                      } else {
-                        jsonFile.setContent(jsonStr);
-                      }
-                    } catch(err) {
-                      jsonFile.setContent(jsonStr);
-                    }
-                    filesUpdated.push(jsonFileName + " (appended)");
-                  } else {
-                    if (existingJson.hasNext()) {
-                      existingJson.next().setContent(jsonStr);
-                      filesUpdated.push(jsonFileName + " (overwritten)");
-                    } else {
-                      folder.createFile(jsonFileName, jsonStr, MimeType.PLAIN_TEXT);
-                      filesUpdated.push(jsonFileName + " (created)");
-                    }
-                  }
-                }
-
-                return ContentService.createTextOutput(JSON.stringify({
-                  status: "success",
-                  sourceApp: sourceApp,
-                  message: "Export processed successfully",
-                  folder: folderPath,
-                  files: filesUpdated,
-                  recordsCount: payload.recordsCount || 1
-                })).setMimeType(ContentService.MimeType.JSON);
-
-              } catch (err) {
-                return ContentService.createTextOutput(JSON.stringify({
-                  status: "error",
-                  message: err.toString()
-                })).setMimeType(ContentService.MimeType.JSON);
-              }
-            }
-
-            function getOrCreateFolderHierarchy(path) {
-              var parts = path.split("/");
-              var current = DriveApp.getRootFolder();
-              for (var i = 0; i < parts.length; i++) {
-                var name = parts[i].trim();
-                if (name.length === 0) continue;
-                var sub = current.getFoldersByName(name);
-                if (sub.hasNext()) {
-                  current = sub.next();
-                } else {
-                  current = current.createFolder(name);
-                }
-              }
-              return current;
-            }
-        """.trimIndent()
+        /**
+         * Backward compatible reference defaulting to the clean function content.
+         */
+        val SAMPLE_APPS_SCRIPT_CODE = MY_FUNCTION_APPS_SCRIPT_CONTENT
     }
 
     /**
