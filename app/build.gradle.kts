@@ -152,12 +152,14 @@ dependencies {
 
 tasks.register("copyDistributionApk") {
   description = "Copies built APK to release/nalama-companion.apk for direct Git download"
+  val buildDir = layout.buildDirectory
+  val rootDirectory = layout.projectDirectory.asFile.parentFile
   doLast {
-    val releaseDir = File(rootDir, "release")
+    val releaseDir = File(rootDirectory, "release")
     releaseDir.mkdirs()
-    val buildOutputsApk = File(rootDir, ".build-outputs/app-debug.apk")
-    val appDebugApk = File(project.layout.buildDirectory.asFile.get(), "outputs/apk/debug/app-debug.apk")
-    val appReleaseApk = File(project.layout.buildDirectory.asFile.get(), "outputs/apk/release/app-release.apk")
+    val buildOutputsApk = File(rootDirectory, ".build-outputs/app-debug.apk")
+    val appDebugApk = File(buildDir.get().asFile, "outputs/apk/debug/app-debug.apk")
+    val appReleaseApk = File(buildDir.get().asFile, "outputs/apk/release/app-release.apk")
     val sourceApk = when {
       appReleaseApk.exists() -> appReleaseApk
       appDebugApk.exists() -> appDebugApk

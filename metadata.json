@@ -1,6 +1,6 @@
 {
-  "name": "Nalama Companion",
-  "description": "Android companion app for nalama.ai.studio / nalama.family to sync Health Connect metrics and Hevy workouts to Google Drive & Google Sheets.",
+  "name": "Health Data Companion for Nalama",
+  "description": "Android companion app for Nalama (nalama.family) to sync Health Connect metrics and Hevy workouts to Google Drive & Google Sheets.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

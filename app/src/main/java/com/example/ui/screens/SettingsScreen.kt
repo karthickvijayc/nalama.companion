@@ -39,6 +39,9 @@ fun SettingsScreen(
     onToggleDemoMode: (Boolean) -> Unit,
     onRequestHealthPermissions: () -> Unit,
     onOpenHealthConnectSettings: () -> Unit = {},
+    onNavigateToLanding: () -> Unit = {},
+    onNavigateToSplash: () -> Unit = {},
+    onDisconnectGoogle: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var webhookUrlInput by remember(uiState.settings.webhookUrl) { mutableStateOf(uiState.settings.webhookUrl) }
@@ -57,6 +60,88 @@ fun SettingsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Section: Google Account & BYOS Storage Status
+        SettingsCard(title = "Google Account & BYOS Storage", icon = Icons.Default.CloudQueue) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFFF3EDF9),
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_google_g),
+                            contentDescription = "Google",
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (uiState.settings.isGoogleConnected) {
+                            uiState.settings.connectedDisplayName.ifEmpty { "Google Account" }
+                        } else if (uiState.settings.demoModeEnabled) {
+                            "Offline Demo Mode (Tester)"
+                        } else {
+                            "Not Connected"
+                        },
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = if (uiState.settings.isGoogleConnected) {
+                            uiState.settings.connectedEmail
+                        } else {
+                            "Link your Google Drive for private exports"
+                        },
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                FilledTonalButton(
+                    onClick = onNavigateToLanding,
+                    modifier = Modifier.testTag("settings_switch_account_button")
+                ) {
+                    Text(
+                        text = if (uiState.settings.isGoogleConnected) "Switch" else "Connect",
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onNavigateToSplash,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("settings_view_splash_button")
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("View Splash", fontSize = 12.sp)
+                }
+
+                if (uiState.settings.isGoogleConnected) {
+                    OutlinedButton(
+                        onClick = onDisconnectGoogle,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        modifier = Modifier.testTag("settings_sign_out_button")
+                    ) {
+                        Text("Sign Out", fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
         // Section 0: Source App Selection
         SettingsCard(title = "Primary Sync Source", icon = Icons.Default.Apps) {
             Text(

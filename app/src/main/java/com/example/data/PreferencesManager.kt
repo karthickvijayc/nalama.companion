@@ -25,7 +25,12 @@ data class AppSettings(
     val demoModeEnabled: Boolean = false,              // Allows immediate testing in emulator
     val lastSyncTimestamp: Long = 0L,
     val lastSyncStatus: String = "Never synced",
-    val lastSyncSuccess: Boolean? = null
+    val lastSyncSuccess: Boolean? = null,
+    val isGoogleConnected: Boolean = false,
+    val connectedEmail: String = "",
+    val connectedDisplayName: String = "",
+    val selectedLanguage: String = "தமிழ் (Tamil)",
+    val hasCompletedOnboarding: Boolean = false
 )
 
 class PreferencesManager(context: Context) {
@@ -64,7 +69,12 @@ class PreferencesManager(context: Context) {
             demoModeEnabled = prefs.getBoolean(KEY_DEMO_MODE, false),
             lastSyncTimestamp = prefs.getLong(KEY_LAST_SYNC_TIME, 0L),
             lastSyncStatus = prefs.getString(KEY_LAST_SYNC_STATUS, "Never synced") ?: "Never synced",
-            lastSyncSuccess = if (prefs.contains(KEY_LAST_SYNC_SUCCESS)) prefs.getBoolean(KEY_LAST_SYNC_SUCCESS, false) else null
+            lastSyncSuccess = if (prefs.contains(KEY_LAST_SYNC_SUCCESS)) prefs.getBoolean(KEY_LAST_SYNC_SUCCESS, false) else null,
+            isGoogleConnected = prefs.getBoolean(KEY_GOOGLE_CONNECTED, false),
+            connectedEmail = prefs.getString(KEY_CONNECTED_EMAIL, "") ?: "",
+            connectedDisplayName = prefs.getString(KEY_CONNECTED_DISPLAY_NAME, "") ?: "",
+            selectedLanguage = prefs.getString(KEY_SELECTED_LANGUAGE, "தமிழ் (Tamil)") ?: "தமிழ் (Tamil)",
+            hasCompletedOnboarding = prefs.getBoolean(KEY_HAS_COMPLETED_ONBOARDING, false)
         )
     }
 
@@ -134,6 +144,52 @@ class PreferencesManager(context: Context) {
         _settings.value = _settings.value.copy(demoModeEnabled = enabled)
     }
 
+    fun connectGoogleAccount(email: String, displayName: String = "") {
+        prefs.edit()
+            .putBoolean(KEY_GOOGLE_CONNECTED, true)
+            .putString(KEY_CONNECTED_EMAIL, email.trim())
+            .putString(KEY_CONNECTED_DISPLAY_NAME, displayName.trim())
+            .putBoolean(KEY_HAS_COMPLETED_ONBOARDING, true)
+            .apply()
+        _settings.value = _settings.value.copy(
+            isGoogleConnected = true,
+            connectedEmail = email.trim(),
+            connectedDisplayName = displayName.trim(),
+            hasCompletedOnboarding = true
+        )
+    }
+
+    fun disconnectGoogleAccount() {
+        prefs.edit()
+            .putBoolean(KEY_GOOGLE_CONNECTED, false)
+            .putString(KEY_CONNECTED_EMAIL, "")
+            .putString(KEY_CONNECTED_DISPLAY_NAME, "")
+            .putBoolean(KEY_HAS_COMPLETED_ONBOARDING, false)
+            .apply()
+        _settings.value = _settings.value.copy(
+            isGoogleConnected = false,
+            connectedEmail = "",
+            connectedDisplayName = "",
+            hasCompletedOnboarding = false
+        )
+    }
+
+    fun updateSelectedLanguage(language: String) {
+        prefs.edit().putString(KEY_SELECTED_LANGUAGE, language).apply()
+        _settings.value = _settings.value.copy(selectedLanguage = language)
+    }
+
+    fun completeOnboardingAsDemo() {
+        prefs.edit()
+            .putBoolean(KEY_DEMO_MODE, true)
+            .putBoolean(KEY_HAS_COMPLETED_ONBOARDING, true)
+            .apply()
+        _settings.value = _settings.value.copy(
+            demoModeEnabled = true,
+            hasCompletedOnboarding = true
+        )
+    }
+
     fun recordSyncOutcome(timestamp: Long, status: String, isSuccess: Boolean) {
         prefs.edit()
             .putLong(KEY_LAST_SYNC_TIME, timestamp)
@@ -162,5 +218,10 @@ class PreferencesManager(context: Context) {
         private const val KEY_LAST_SYNC_TIME = "key_last_sync_time"
         private const val KEY_LAST_SYNC_STATUS = "key_last_sync_status"
         private const val KEY_LAST_SYNC_SUCCESS = "key_last_sync_success"
+        private const val KEY_GOOGLE_CONNECTED = "key_google_connected"
+        private const val KEY_CONNECTED_EMAIL = "key_connected_email"
+        private const val KEY_CONNECTED_DISPLAY_NAME = "key_connected_display_name"
+        private const val KEY_SELECTED_LANGUAGE = "key_selected_language"
+        private const val KEY_HAS_COMPLETED_ONBOARDING = "key_has_completed_onboarding"
     }
 }

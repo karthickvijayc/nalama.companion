@@ -6,7 +6,19 @@
 
 ## 🌟 Capabilities & Features
 
-### 1. 🩺 Comprehensive Health Connect Aggregation
+### 1. 🌿 Brand Identity & Starting Splash Screen
+* **Nalama Peacock Tree of Life**: Featuring the signature emblem with Tamil script **"நலமா"** and **"family"**.
+* **Clean Animated Loading**: Smooth entry animation with an emerald green loading indicator and privacy assurance.
+* **Instant Tap-to-Skip**: Allows power users to jump straight into the application without waiting.
+
+### 2. 🔐 Google Account & BYOS Landing Page
+* **Connect with Google**: Seamless one-tap Google account connection to authorize private, scoped Google Drive storage.
+* **100% Private Storage Badge**: Clear transparency guarantee that health data is saved directly in `/nalama.family` inside your personal Google Drive.
+* **Multilingual Selector**: Instant toggle between **தமிழ் (Tamil)**, **తెలుగు (Telugu)**, **हिन्दी (Hindi)**, and **മലയാളം (Malayalam)**.
+* **Scoped Permissions Explainer**: Expandable security disclosure detailing the zero-database architecture.
+* **Offline Demo Mode for Testers**: Built-in test sandbox allowing evaluators to experience full biometrics flow without signing in.
+
+### 3. 🩺 Comprehensive Health Connect Aggregation
 Aggregates biometrics from any wearable or app linked to Google Health Connect (**Samsung Health, Google Fit, Pixel Watch, Garmin Connect, Oura Ring, Whoop, Withings**):
 * **Activity & Movement**: Daily steps, total distance covered (meters/km), active calories burned, and basal metabolic rate (resting calories).
 * **Sleep Architecture**: Total sleep duration, bed time, wake time, and granular sleep stages (*Deep, REM, Light, Awake*).
@@ -45,15 +57,19 @@ Aggregates biometrics from any wearable or app linked to Google Health Connect (
 
 ## 🚀 How to Use & Setup Guide
 
-### Step 1: Install the APK
+### Step 1: Install & Open the APK
 Download and install `nalama-companion.apk` on your Android device (see [Sideloading Instructions](#-sideloading-instructions) below).
 
-### Step 2: Grant Health Connect Permissions
-1. Launch **Nalama Companion**.
-2. On the **Dashboard**, tap **Grant Permissions**.
-3. Android's Health Connect system dialog will appear. Toggle **Allow all** (or select individual permissions like Steps, Sleep, Heart Rate, etc.) and tap **Allow**.
+### Step 2: Welcome Splash & Google Account Connect
+1. Upon launch, you'll be greeted by the **Nalama Peacock Tree of Life** splash screen.
+2. On the **Landing Page**, tap **Sign in with Google** to link your Google account for private Drive storage (`/nalama.family`), or select your preferred display language (**Tamil, Telugu, Hindi, Malayalam**).
+3. *(Optional for testers)*: Tap **"Are you a Tester? Try Offline Demo Mode"** to explore the dashboard immediately without connecting a live Google account.
 
-### Step 3: Create Your Free Google Apps Script Webhook
+### Step 3: Grant Health Connect Permissions
+1. On the **Dashboard**, tap **Grant Permissions**.
+2. Android's Health Connect system dialog will appear. Toggle **Allow all** (or select individual permissions like Steps, Sleep, Heart Rate, etc.) and tap **Allow**.
+
+### Step 4: Create Your Free Google Apps Script Webhook
 Nalama sends data to a lightweight, free Google Apps Script web app running in your own Google account:
 
 1. Open [Google Drive](https://drive.google.com) and create a new **Google Sheet** (e.g., named `Nalama Health Data`).

@@ -27,7 +27,14 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
+enum class AppScreen {
+    SPLASH,
+    LANDING,
+    MAIN
+}
+
 data class HealthSyncUiState(
+    val currentScreen: AppScreen = AppScreen.SPLASH,
     val settings: AppSettings = AppSettings(),
     val healthAvailability: HealthConnectAvailability = HealthConnectAvailability.AVAILABLE,
     val hasPermissions: Boolean = false,
@@ -384,5 +391,38 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
 
     fun clearHistory() {
         historyStore.clearHistory()
+    }
+
+    fun navigateTo(screen: AppScreen) {
+        _uiState.update { it.copy(currentScreen = screen) }
+    }
+
+    fun onSplashFinished() {
+        val settings = prefs.settings.value
+        if (settings.hasCompletedOnboarding || settings.isGoogleConnected || settings.demoModeEnabled) {
+            _uiState.update { it.copy(currentScreen = AppScreen.MAIN) }
+        } else {
+            _uiState.update { it.copy(currentScreen = AppScreen.LANDING) }
+        }
+    }
+
+    fun connectGoogleAccount(email: String, displayName: String = "") {
+        prefs.connectGoogleAccount(email, displayName)
+        _uiState.update { it.copy(currentScreen = AppScreen.MAIN) }
+    }
+
+    fun disconnectGoogleAccount() {
+        prefs.disconnectGoogleAccount()
+        _uiState.update { it.copy(currentScreen = AppScreen.LANDING) }
+    }
+
+    fun updateSelectedLanguage(language: String) {
+        prefs.updateSelectedLanguage(language)
+    }
+
+    fun enterDemoModeFromLanding() {
+        prefs.completeOnboardingAsDemo()
+        refreshActiveData()
+        _uiState.update { it.copy(currentScreen = AppScreen.MAIN) }
     }
 }

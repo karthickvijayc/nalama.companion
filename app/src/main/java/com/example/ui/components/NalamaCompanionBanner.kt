@@ -57,20 +57,23 @@ fun NalamaCompanionBanner(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Nalama Tree Logo Badge
-                Box(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                        .padding(5.dp),
-                    contentAlignment = Alignment.Center
+                // Nalama Companion Logo Badge
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color.White,
+                    shadowElevation = 1.dp,
+                    modifier = Modifier.size(46.dp)
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_nalama_logo),
-                        contentDescription = "Nalama Peacock Tree Logo",
-                        modifier = Modifier.size(36.dp)
-                    )
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.padding(3.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_nalama_logo),
+                            contentDescription = "Nalama Health Data Companion Logo",
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
                 }
 
                 Column(modifier = Modifier.weight(1f)) {
@@ -79,16 +82,10 @@ fun NalamaCompanionBanner(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = "Nalama",
+                            text = "Nalama Health Data",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = "நலமா",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.secondary
                         )
                         Surface(
                             shape = RoundedCornerShape(4.dp),

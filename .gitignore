@@ -16,3 +16,11 @@
 local.properties
 .env
 debug.keystore
+debug.keystore.base64
+
+# Android build outputs & binaries (prevent exceeding GitHub size limits)
+*.apk
+*.aab
+.build-outputs/
+release/
+public/
