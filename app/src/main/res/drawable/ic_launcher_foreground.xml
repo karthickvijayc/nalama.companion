@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Centered in 66dp safe zone (coordinates 21 to 87) -->
+    <!-- Nalama Peacock Tree of Life with BYOS Security Shield -->
+
+    <!-- 1. Outer Peacock Cerulean Plumes (Cyan / Blue) -->
+    <path
+        android:fillColor="#0284C7"
+        android:pathData="M27,48 C24,38 29,31 37,32 C35,39 32,45 27,48 Z" />
+    <path
+        android:fillColor="#0369A1"
+        android:pathData="M23,57 C20,49 25,42 32,44 C30,50 27,55 23,57 Z" />
+    <path
+        android:fillColor="#0284C7"
+        android:pathData="M34,38 C32,28 39,21 46,24 C44,31 39,36 34,38 Z" />
+
+    <path
+        android:fillColor="#0284C7"
+        android:pathData="M81,48 C84,38 79,31 71,32 C73,39 76,45 81,48 Z" />
+    <path
+        android:fillColor="#0369A1"
+        android:pathData="M85,57 C88,49 83,42 76,44 C78,50 81,55 85,57 Z" />
+    <path
+        android:fillColor="#0284C7"
+        android:pathData="M74,38 C76,28 69,21 62,24 C64,31 69,36 74,38 Z" />
+
+    <!-- 2. Emerald Inner Leaves -->
+    <path
+        android:fillColor="#166534"
+        android:pathData="M38,54 C33,47 38,39 46,42 C44,49 41,52 38,54 Z" />
+    <path
+        android:fillColor="#15803D"
+        android:pathData="M70,54 C75,47 70,39 62,42 C64,49 67,52 70,54 Z" />
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M44,33 C41,23 49,18 54,21 C52,28 49,31 44,33 Z" />
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M64,33 C67,23 59,18 54,21 C56,28 59,31 64,33 Z" />
+
+    <!-- 3. Family Figure Heads & Heart -->
+    <!-- Top Center Child Head -->
+    <path
+        android:fillColor="#0284C7"
+        android:pathData="M54,16m-4,0a4,4 0,1,1 8,0a4,4 0,1,1 -8,0" />
+    <!-- Left Parent Head -->
+    <path
+        android:fillColor="#0369A1"
+        android:pathData="M43,21m-3.5,0a3.5,3.5 0,1,1 7,0a3.5,3.5 0,1,1 -7,0" />
+    <!-- Right Parent Head -->
+    <path
+        android:fillColor="#0369A1"
+        android:pathData="M65,21m-3.5,0a3.5,3.5 0,1,1 7,0a3.5,3.5 0,1,1 -7,0" />
+
+    <!-- Central Heart -->
+    <path
+        android:fillColor="#166534"
+        android:pathData="M54,32 C51.5,28.5 47,28.5 47,33 C47,37.5 54,41.5 54,41.5 C54,41.5 61,37.5 61,33 C61,28.5 56.5,28.5 54,32 Z" />
+
+    <!-- 4. Tree Trunk Arms -->
+    <path
+        android:fillColor="#14532D"
+        android:pathData="M44,48 C39,39 46,29 51,29 C49,38 46,45 44,48 Z" />
+    <path
+        android:fillColor="#14532D"
+        android:pathData="M64,48 C69,39 62,29 57,29 C59,38 62,45 64,48 Z" />
+
+    <!-- 5. Central Security Shield (Zero-Database BYOS Privacy) -->
+    <path
+        android:fillColor="#166534"
+        android:strokeColor="#DCFCE7"
+        android:strokeWidth="1.2"
+        android:pathData="M54,45 L64,48.5 C64,61 54,68 54,68 C54,68 44,61 44,48.5 L54,45 Z" />
+
+    <!-- Security Padlock Inside Shield -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round"
+        android:pathData="M51.8,54 L51.8,51.8 C51.8,50.5 52.8,49.5 54,49.5 C55.2,49.5 56.2,50.5 56.2,51.8 L56.2,54" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M50.5,54 L57.5,54 C58.2,54 58.8,54.6 58.8,55.3 L58.8,59.7 C58.8,60.4 58.2,61 57.5,61 L50.5,61 C49.8,61 49.2,60.4 49.2,59.7 L49.2,55.3 C49.2,54.6 49.8,54 50.5,54 Z" />
+    <path
+        android:fillColor="#166534"
+        android:pathData="M54,56.8m-0.8,0a0.8,0.8 0,1,1 1.6,0a0.8,0.8 0,1,1 -1.6,0" />
+
+    <!-- 6. Tree Roots -->
+    <path
+        android:fillColor="#14532D"
+        android:strokeColor="#166534"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M54,68 L54,77 M54,72 C48,74 42,78 35,80 M54,73 C60,75 66,77 73,80 M54,77 C46,81 41,85 34,87 M54,77 C62,81 67,85 74,87 M50,77 L46,88 M58,77 L62,88" />
+</vector>
