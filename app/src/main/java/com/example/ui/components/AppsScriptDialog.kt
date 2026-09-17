@@ -3,18 +3,19 @@ package com.example.ui.components
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.IntegrationInstructions
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,6 +36,18 @@ fun AppsScriptDialog(
 ) {
     val context = LocalContext.current
     val scriptCode = GoogleAppsScriptWebhookClient.SAMPLE_APPS_SCRIPT_CODE
+    var hasAutoCopied by remember { mutableStateOf(false) }
+    var showRawCode by remember { mutableStateOf(false) }
+
+    fun copyCodeToClipboard(showToastNotification: Boolean = true) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("Nalama Google Apps Script", scriptCode)
+        clipboard.setPrimaryClip(clip)
+        hasAutoCopied = true
+        if (showToastNotification) {
+            Toast.makeText(context, "Apps Script copied to clipboard!", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -43,7 +56,7 @@ fun AppsScriptDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.85f)
+                .fillMaxHeight(0.88f)
                 .testTag("apps_script_dialog"),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -53,7 +66,7 @@ fun AppsScriptDialog(
                     .fillMaxSize()
                     .padding(20.dp)
             ) {
-                // Dialog Header
+                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -63,91 +76,215 @@ fun AppsScriptDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.IntegrationInstructions,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = "Google Apps Script Webhook",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Bolt,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                        Column {
+                            Text(
+                                text = "One-Click Webhook Creator",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Automate Google Sheets & Drive Bridge",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.Close, contentDescription = "Close")
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // Scrollable content
+                // Scrollable Content
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    // ONE-CLICK PRIMARY ACTION CARD
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                        shape = RoundedCornerShape(16.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = "1-Click Launch & Auto-Copy",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+
+                            Text(
+                                text = "Tapping below copies the complete Nalama Health & Workout Webhook code to your clipboard and opens the Google Apps Script project creator in your browser.",
+                                fontSize = 12.sp,
+                                lineHeight = 17.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            Button(
+                                onClick = {
+                                    copyCodeToClipboard(showToastNotification = false)
+                                    val scriptUrl = "https://script.new"
+                                    val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(scriptUrl))
+                                    context.startActivity(browserIntent)
+                                    Toast.makeText(
+                                        context,
+                                        "Script copied to clipboard! Opening script.new...",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("one_click_create_script_btn"),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.Launch, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Launch Google Script Studio", fontWeight = FontWeight.SemiBold)
+                            }
+
+                            if (hasAutoCopied) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.padding(top = 2.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = Color(0xFF137333),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "Code is currently ready in clipboard!",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF137333),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Guided 2-Step Finish Guide
                     Text(
-                        text = "Deployment Guide (4 quick steps):",
+                        text = "Quick 2-Step Activation:",
                         style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Bold
                     )
 
                     Surface(
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("1. Open Google Sheets or script.google.com", fontSize = 12.sp)
-                            Text("2. Click Extensions → Apps Script", fontSize = 12.sp)
-                            Text("3. Replace Code.gs with the script below and click Save", fontSize = 12.sp)
-                            Text("4. Click Deploy → New deployment → Web app\n   • Execute as: Me\n   • Who has access: Anyone", fontSize = 12.sp)
-                            Text("5. Copy the Web app URL into this app's Settings", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("①", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+                                Text(
+                                    "In the opened browser window, paste (Ctrl+V / Long-press Paste) into Code.gs and press Save (💾).",
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("②", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(
+                                        "Click Deploy → New deployment → Web app:",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text("• Execute as: Me\n• Who has access: Anyone", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("• Copy the Web App URL into the Settings box below.", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                }
+                            }
                         }
                     }
 
+                    // Code Viewer Toggle
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Google Apps Script Code (Code.gs):",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Button(
-                            onClick = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("Google Apps Script", scriptCode)
-                                clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, "Apps Script copied to clipboard!", Toast.LENGTH_SHORT).show()
-                            },
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        TextButton(
+                            onClick = { showRawCode = !showRawCode },
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (showRawCode) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (showRawCode) "Hide Script Source" else "View Script Source",
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = { copyCodeToClipboard(showToastNotification = true) },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                             modifier = Modifier.testTag("copy_script_button")
                         ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Copy Script", fontSize = 12.sp)
+                            Text("Re-copy Code", fontSize = 11.sp)
                         }
                     }
 
-                    // Code snippet container
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFF1E1E24))
-                            .padding(12.dp)
-                    ) {
-                        Text(
-                            text = scriptCode,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                            color = Color(0xFFD4D4D8),
-                            lineHeight = 16.sp
-                        )
+                    if (showRawCode) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF1E1E24))
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                text = scriptCode,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                color = Color(0xFFD4D4D8),
+                                lineHeight = 16.sp
+                            )
+                        }
                     }
                 }
 
@@ -157,7 +294,7 @@ fun AppsScriptDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("Got It")
+                    Text("Done")
                 }
             }
         }

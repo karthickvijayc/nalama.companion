@@ -222,6 +222,42 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            // Quick One-Click Creation Banner
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Need a Webhook URL?",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = "Auto-launch Google Script Studio & copy code in 1 tap.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    FilledTonalButton(
+                        onClick = { showAppsScriptDialog = true },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.testTag("one_click_create_script_entry_button")
+                    ) {
+                        Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("1-Click Setup", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = webhookUrlInput,
                 onValueChange = {
@@ -272,7 +308,7 @@ fun SettingsScreen(
                 ) {
                     Icon(Icons.Default.IntegrationInstructions, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Get Apps Script")
+                    Text("Script & Guide")
                 }
             }
 
