@@ -112,38 +112,82 @@ fun HistoryScreen(
         AlertDialog(
             onDismissRequest = { selectedItemForDetail = null },
             confirmButton = {
-                TextButton(onClick = { selectedItemForDetail = null }) {
-                    Text("Close")
+                Button(
+                    onClick = { selectedItemForDetail = null },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) {
+                    Text("Close", fontWeight = FontWeight.Bold)
                 }
             },
             title = {
-                Text(
-                    text = if (item.status == ExportStatus.SUCCESS) "Export Successful" else "Export Failed",
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = if (item.status == ExportStatus.SUCCESS) Icons.Default.CheckCircle else Icons.Default.Error,
+                        contentDescription = null,
+                        tint = if (item.status == ExportStatus.SUCCESS) Color(0xFF16A34A) else Color(0xFFDC2626),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text(
+                        text = if (item.status == ExportStatus.SUCCESS) "Export Successful" else "Export Failed",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Timestamp: ${item.formattedDate}", fontSize = 12.sp)
-                    Text("Trigger: ${if (item.isManualTrigger) "Manual (Button click)" else "Scheduled (15m interval)"}", fontSize = 12.sp)
-                    Text("Target: ${item.folderPath}", fontSize = 12.sp)
-                    Text("Format: ${item.format.displayName} | Mode: ${item.writeMode.displayName}", fontSize = 12.sp)
-                    Text("HTTP Status: ${item.httpStatusCode ?: "N/A"}", fontSize = 12.sp)
-                    Text("Message: ${item.message}", fontSize = 12.sp)
-                    if (!item.payloadPreviewCsv.isNullOrBlank()) {
-                        Text("CSV Preview:", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            shape = RoundedCornerShape(6.dp),
-                            modifier = Modifier.fillMaxWidth()
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                text = item.payloadPreviewCsv.take(300) + if (item.payloadPreviewCsv.length > 300) "..." else "",
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 10.sp,
-                                modifier = Modifier.padding(6.dp)
+                                text = "Time: ${item.formattedDate}",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Source: ${item.sourceApp}",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Target: ${item.folderPath}",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Trigger: ${if (item.isManualTrigger) "Manual Export" else "Automatic Schedule"}",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Records: ${item.recordsCount} record(s) synced",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
+                    }
+
+                    if (item.message.isNotBlank()) {
+                        Text(
+                            text = item.message,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }

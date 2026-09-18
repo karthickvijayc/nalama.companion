@@ -153,8 +153,8 @@ class MainActivity : ComponentActivity() {
                                         if (uiState.settings.isGoogleConnected) {
                                             Surface(
                                                 shape = CircleShape,
-                                                color = Color(0xFFF3EDF9),
-                                                border = BorderStroke(1.dp, Color(0xFFDECFF0)),
+                                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                                                 modifier = Modifier
                                                     .padding(end = 4.dp)
                                                     .clickable { viewModel.navigateTo(AppScreen.LANDING) }
@@ -168,14 +168,14 @@ class MainActivity : ComponentActivity() {
                                                     Icon(
                                                         Icons.Outlined.AccountCircle,
                                                         contentDescription = "Account",
-                                                        tint = Color(0xFF36245A),
+                                                        tint = MaterialTheme.colorScheme.primary,
                                                         modifier = Modifier.size(15.dp)
                                                     )
                                                     Text(
                                                         text = uiState.settings.connectedDisplayName.ifEmpty { "Connected" }.take(10),
                                                         fontSize = 11.sp,
                                                         fontWeight = FontWeight.SemiBold,
-                                                        color = Color(0xFF36245A)
+                                                        color = MaterialTheme.colorScheme.onSurface
                                                     )
                                                 }
                                             }
@@ -196,7 +196,9 @@ class MainActivity : ComponentActivity() {
                                 NavigationBar(
                                     modifier = Modifier
                                         .navigationBarsPadding()
-                                        .testTag("main_bottom_nav")
+                                        .testTag("main_bottom_nav"),
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    tonalElevation = 3.dp
                                 ) {
                                     NavigationBarItem(
                                         selected = uiState.activeTab == 0,
@@ -234,18 +236,6 @@ class MainActivity : ComponentActivity() {
                                         label = { Text("Settings") },
                                         modifier = Modifier.testTag("nav_item_settings")
                                     )
-                                    NavigationBarItem(
-                                        selected = uiState.activeTab == 3,
-                                        onClick = { viewModel.selectTab(3) },
-                                        icon = {
-                                            Icon(
-                                                imageVector = if (uiState.activeTab == 3) Icons.Filled.Code else Icons.Outlined.Code,
-                                                contentDescription = "Payload"
-                                            )
-                                        },
-                                        label = { Text("Payload") },
-                                        modifier = Modifier.testTag("nav_item_payload")
-                                    )
                                 }
                             }
                         ) { innerPadding ->
@@ -261,7 +251,6 @@ class MainActivity : ComponentActivity() {
                                     onRefreshHealthData = { viewModel.refreshActiveData() },
                                     onOpenScheduleSettings = { viewModel.selectTab(2) },
                                     onDismissExportResult = { viewModel.dismissExportResult() },
-                                    onViewPreview = { viewModel.selectTab(3) },
                                     modifier = Modifier.padding(innerPadding)
                                 )
                                 1 -> HistoryScreen(
@@ -290,13 +279,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     onNavigateToLanding = { viewModel.navigateTo(AppScreen.LANDING) },
-                                    onNavigateToSplash = { viewModel.navigateTo(AppScreen.SPLASH) },
                                     onDisconnectGoogle = { viewModel.disconnectGoogleAccount() },
-                                    modifier = Modifier.padding(innerPadding)
-                                )
-                                3 -> PayloadPreviewScreen(
-                                    jsonPayload = uiState.previewJson,
-                                    csvPayload = uiState.previewCsv,
                                     modifier = Modifier.padding(innerPadding)
                                 )
                             }

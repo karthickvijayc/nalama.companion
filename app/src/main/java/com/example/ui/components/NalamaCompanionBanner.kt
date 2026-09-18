@@ -33,8 +33,9 @@ fun NalamaCompanionBanner(
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
         tonalElevation = 2.dp,
-        shadowElevation = 2.dp,
+        shadowElevation = 1.dp,
         modifier = modifier
             .fillMaxWidth()
             .testTag("nalama_companion_banner")
@@ -42,14 +43,7 @@ fun NalamaCompanionBanner(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-                        )
-                    )
-                )
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 .padding(16.dp)
         ) {
             Row(
@@ -62,16 +56,16 @@ fun NalamaCompanionBanner(
                     shape = RoundedCornerShape(10.dp),
                     color = Color.White,
                     shadowElevation = 1.dp,
-                    modifier = Modifier.size(46.dp)
+                    modifier = Modifier.size(44.dp)
                 ) {
                     Box(
                         contentAlignment = Alignment.Center,
-                        modifier = Modifier.padding(3.dp)
+                        modifier = Modifier.padding(2.dp)
                     ) {
                         Image(
                             painter = painterResource(id = R.drawable.img_nalama_logo),
                             contentDescription = "Nalama Health Data Companion Logo",
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.size(38.dp)
                         )
                     }
                 }
@@ -82,34 +76,23 @@ fun NalamaCompanionBanner(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = "Nalama Health Data",
-                            style = MaterialTheme.typography.titleSmall,
+                            text = "Nalama Companion",
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        ) {
-                            Text(
-                                text = "COMPANION",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                            )
-                        }
                     }
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Bridging on-device biometrics & gym records to nalama.family via BYOS Google Drive / Sheets.",
+                        text = "Sync your health and workout data privately to your Google Drive and Sheets.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp,
-                        lineHeight = 15.sp
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp
                     )
                 }
 
-                FilledTonalButton(
+                Button(
                     onClick = {
                         try {
                             uriHandler.openUri("https://nalama.family")
@@ -120,6 +103,10 @@ fun NalamaCompanionBanner(
                         }
                     },
                     shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                     modifier = Modifier.testTag("open_nalama_pwa_button")
                 ) {
@@ -129,7 +116,7 @@ fun NalamaCompanionBanner(
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "App", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "App", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

@@ -40,7 +40,6 @@ fun SettingsScreen(
     onRequestHealthPermissions: () -> Unit,
     onOpenHealthConnectSettings: () -> Unit = {},
     onNavigateToLanding: () -> Unit = {},
-    onNavigateToSplash: () -> Unit = {},
     onDisconnectGoogle: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -60,8 +59,8 @@ fun SettingsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Section: Google Account & BYOS Storage Status
-        SettingsCard(title = "Google Account & BYOS Storage", icon = Icons.Default.CloudQueue) {
+        // Section: Google Account & Storage Status
+        SettingsCard(title = "Google Account & Backup", icon = Icons.Default.CloudQueue) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -69,7 +68,7 @@ fun SettingsScreen(
             ) {
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFFF3EDF9),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
                     modifier = Modifier.size(40.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -86,7 +85,7 @@ fun SettingsScreen(
                         text = if (uiState.settings.isGoogleConnected) {
                             uiState.settings.connectedDisplayName.ifEmpty { "Google Account" }
                         } else if (uiState.settings.demoModeEnabled) {
-                            "Offline Demo Mode (Tester)"
+                            "Offline Demo Mode"
                         } else {
                             "Not Connected"
                         },
@@ -97,45 +96,42 @@ fun SettingsScreen(
                         text = if (uiState.settings.isGoogleConnected) {
                             uiState.settings.connectedEmail
                         } else {
-                            "Link your Google Drive for private exports"
+                            "Link your Google Drive for private backup"
                         },
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                FilledTonalButton(
+                Button(
                     onClick = onNavigateToLanding,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.testTag("settings_switch_account_button")
                 ) {
                     Text(
                         text = if (uiState.settings.isGoogleConnected) "Switch" else "Connect",
-                        fontSize = 12.sp
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onNavigateToSplash,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("settings_view_splash_button")
+            if (uiState.settings.isGoogleConnected) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
                 ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("View Splash", fontSize = 12.sp)
-                }
-
-                if (uiState.settings.isGoogleConnected) {
                     OutlinedButton(
                         onClick = onDisconnectGoogle,
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                         modifier = Modifier.testTag("settings_sign_out_button")
                     ) {
+                        Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text("Sign Out", fontSize = 12.sp)
                     }
                 }
@@ -211,6 +207,16 @@ fun SettingsScreen(
                         }
                     }
                 )
+            } else {
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedButton(
+                    onClick = onOpenHealthConnectSettings,
+                    modifier = Modifier.fillMaxWidth().testTag("open_hc_settings_btn")
+                ) {
+                    Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Health Connect Permissions & Settings", fontSize = 12.sp)
+                }
             }
         }
 
@@ -289,16 +295,20 @@ fun SettingsScreen(
                 Button(
                     onClick = { onTestWebhook(webhookUrlInput) },
                     enabled = !uiState.isTestingWebhook && webhookUrlInput.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
                     modifier = Modifier.weight(1f).testTag("test_webhook_button")
                 ) {
                     if (uiState.isTestingWebhook) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Testing...")
+                        Text("Testing...", fontWeight = FontWeight.Bold)
                     } else {
                         Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Test Connection")
+                        Text("Test Connection", fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -308,7 +318,7 @@ fun SettingsScreen(
                 ) {
                     Icon(Icons.Default.IntegrationInstructions, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Script & Guide")
+                    Text("Setup Guide", fontWeight = FontWeight.SemiBold)
                 }
             }
 
@@ -523,40 +533,13 @@ fun SettingsScreen(
             }
         }
 
-        // Section 5: Nalama Ecosystem Integration
-        SettingsCard(title = "Nalama Ecosystem Integration", icon = Icons.Default.Language) {
+        // Section 5: About Nalama Platform
+        SettingsCard(title = "About Nalama Platform", icon = Icons.Default.Info) {
             Text(
-                text = "This Android app is the companion sensor & workout ingestion engine for your Nalama PWA at nalama.ai.studio / nalama.family.",
+                text = "Nalama Health Companion securely bridges your fitness metrics and workout logs into your personal Google Drive and Sheets.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = "Ecosystem Architecture",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Text(
-                        text = "1. Health Connect & Hevy workouts captured on Android device.\n" +
-                               "2. Webhook triggers Google Apps Script.\n" +
-                               "3. Data saved to nalama.family/imports folder.\n" +
-                               "4. nalama.ai.studio reads spreadsheets for AI coaching & dashboards.",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-            }
 
             val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
             Row(
@@ -571,9 +554,9 @@ fun SettingsScreen(
                     },
                     modifier = Modifier.weight(1f).testTag("open_nalama_family_btn")
                 ) {
-                    Icon(Icons.Default.FolderShared, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("nalama.family", fontSize = 11.sp)
+                    Text("nalama.family", fontSize = 12.sp)
                 }
                 OutlinedButton(
                     onClick = {
@@ -585,103 +568,8 @@ fun SettingsScreen(
                 ) {
                     Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("nalama.ai.studio", fontSize = 11.sp)
+                    Text("nalama.ai.studio", fontSize = 12.sp)
                 }
-            }
-        }
-
-        // Section 6: Direct Git Distribution & Parent App Link
-        SettingsCard(title = "Direct APK Distribution & Parent App Link", icon = Icons.Default.Download) {
-            Text(
-                text = "Push the codebase and APK to Git, then link directly from the parent app (nalama.family):",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "APK Ready in /release/nalama-companion.apk",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                    Text(
-                        text = "• Pre-signed APK is available in release/nalama-companion.apk in this repository.\n" +
-                                "• Since the repository is Public, anyone can download it directly via:\n" +
-                                "  https://github.com/<YOUR_USER>/<REPO>/raw/main/release/nalama-companion.apk\n" +
-                                "• Pre-signed with a consistent keystore so users can upgrade future versions directly without uninstalling.",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-            }
-
-            Surface(
-                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Code,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "Parent App (nalama.family) HTML Snippet",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
-                    Text(
-                        text = "Add this button or link to nalama.family / nalama.ai.studio:\n\n" +
-                                "<a href=\"https://github.com/<USER>/<REPO>/raw/main/release/nalama-companion.apk\" download class=\"nalama-download-btn\">\n" +
-                                "  📱 Download Nalama Companion APK (v1.0.0)\n" +
-                                "</a>",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
-            }
-
-            // Health Connect Settings launcher for sideloaded apps
-            OutlinedButton(
-                onClick = onOpenHealthConnectSettings,
-                modifier = Modifier.fillMaxWidth().testTag("open_hc_settings_btn")
-            ) {
-                Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Manage App in Health Connect Settings", fontSize = 12.sp)
             }
         }
 

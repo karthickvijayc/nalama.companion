@@ -36,7 +36,6 @@ fun DashboardScreen(
     onRefreshHealthData: () -> Unit,
     onOpenScheduleSettings: () -> Unit,
     onDismissExportResult: () -> Unit,
-    onViewPreview: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -63,9 +62,9 @@ fun DashboardScreen(
                 modifier = Modifier.weight(1f),
                 label = if (isHevy) "Source: Hevy" else "Health Connect",
                 status = if (isHevy) {
-                    if (uiState.settings.hevyApiKey.isNotBlank()) "API Key Set" else "Ready (Sample/Local)"
+                    if (uiState.settings.hevyApiKey.isNotBlank()) "API Key Set" else "Ready (Sample)"
                 } else {
-                    if (uiState.settings.demoModeEnabled) "Demo Mode" else if (isHcOk) "Connected" else "Attention"
+                    if (uiState.settings.demoModeEnabled) "Demo Mode" else if (isHcOk) "Connected" else "Needs Access"
                 },
                 icon = if (isHevy) Icons.Default.FitnessCenter else (if (isHcOk) Icons.Default.CheckCircle else Icons.Default.Warning),
                 isGood = isHevy || isHcOk || uiState.settings.demoModeEnabled,
@@ -105,31 +104,38 @@ fun DashboardScreen(
             Surface(
                 color = MaterialTheme.colorScheme.tertiaryContainer,
                 shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Health Connect Permissions",
+                            text = "Health Permissions Needed",
                             style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
                         Text(
-                            text = "Grant permissions to read steps, sleep, vitals, and body metrics directly.",
-                            style = MaterialTheme.typography.bodySmall
+                            text = "Grant access to read steps, sleep, and activity records.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.85f)
                         )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Button(
                         onClick = onRequestHealthPermissions,
                         shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
                         modifier = Modifier.testTag("grant_permissions_button")
                     ) {
-                        Text("Grant")
+                        Text("Grant", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -199,7 +205,7 @@ fun DashboardScreen(
             )
         }
 
-        // Export Controls Card (Format: CSV/JSON/Both, Mode: Append/Overwrite, Folder, Trigger)
+        // Export Controls Card
         ExportControlsCard(
             sourceApp = uiState.settings.sourceApp,
             selectedFormat = uiState.settings.exportFormat,
@@ -215,24 +221,6 @@ fun DashboardScreen(
             onExportNow = onExportNow,
             onOpenScheduleSettings = onOpenScheduleSettings
         )
-
-        // Quick Link to Payload Preview & History
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(
-                onClick = onViewPreview,
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("view_payload_preview_button"),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Icon(Icons.Default.Code, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("View Payload Preview")
-            }
-        }
 
         Spacer(modifier = Modifier.height(16.dp))
     }
@@ -250,7 +238,8 @@ private fun StatusBadge(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
         modifier = modifier
     ) {
         Column(
@@ -270,6 +259,7 @@ private fun StatusBadge(
                 Text(
                     text = label,
                     fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
                 )
@@ -278,6 +268,7 @@ private fun StatusBadge(
                 text = status,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1
             )
         }

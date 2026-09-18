@@ -243,6 +243,10 @@ fun ExportControlsCard(
             Button(
                 onClick = onExportNow,
                 enabled = !isExporting,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp)
@@ -256,7 +260,7 @@ fun ExportControlsCard(
                         strokeWidth = 2.dp
                     )
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text("Syncing ${sourceApp.displayName} to Drive...", fontSize = 15.sp)
+                    Text("Syncing ${sourceApp.displayName} to Drive...", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 } else {
                     Icon(
                         imageVector = Icons.Default.CloudUpload,
@@ -265,7 +269,7 @@ fun ExportControlsCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Sync ${sourceApp.displayName} to Sheets / Drive",
+                        text = "Sync ${sourceApp.displayName} to Drive / Sheets",
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )

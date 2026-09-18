@@ -126,15 +126,15 @@ fun LandingScreen(
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 2.sp,
-                        color = Color(0xFF36245A),
+                        color = MaterialTheme.colorScheme.primary,
                         textAlign = TextAlign.Center
                     )
                     Text(
                         text = "HEALTH DATA COMPANION",
-                        fontSize = 12.5.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 2.sp,
-                        color = Color(0xFF6C3986),
+                        letterSpacing = 1.5.sp,
+                        color = MaterialTheme.colorScheme.secondary,
                         textAlign = TextAlign.Center
                     )
 
@@ -143,38 +143,38 @@ fun LandingScreen(
                     // Companion app designation badge
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFF3EDF9),
-                        border = BorderStroke(1.dp, Color(0xFFDECFF0)),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                         modifier = Modifier.padding(horizontal = 4.dp)
                     ) {
                         Text(
                             text = "Companion App for Nalama (nalama.family)",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF5A2A7A),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // Purpose Statement
                     Text(
-                        text = "Securely bridges your on-device Health Connect biometrics and Hevy workout records directly to your personal Google Drive or Sheets for the parent Nalama platform.",
-                        fontSize = 13.5.sp,
-                        color = Color(0xFF475569),
+                        text = "Privately sync your Health Connect records and workouts directly to your personal Google Drive or Sheets.",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
-                        lineHeight = 19.sp,
+                        lineHeight = 20.sp,
                         modifier = Modifier.padding(horizontal = 4.dp)
                     )
 
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = "Zero database • Your health data stays 100% in your personal storage.",
+                        text = "Private storage • Your health data stays on your personal account.",
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF36245A),
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
                         textAlign = TextAlign.Center
                     )
 
@@ -183,9 +183,9 @@ fun LandingScreen(
                     // Sign in with Google Button
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.surface,
                         shadowElevation = 2.dp,
-                        border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(54.dp)
@@ -208,7 +208,7 @@ fun LandingScreen(
                                 text = "Sign in with Google",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1E293B)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -232,19 +232,19 @@ fun LandingScreen(
                             Icon(
                                 imageVector = Icons.Outlined.Lock,
                                 contentDescription = null,
-                                tint = Color(0xFF64748B),
-                                modifier = Modifier.size(15.dp)
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
                             )
                             Text(
-                                text = "Permission Notice • Secure Storage Info",
+                                text = "Privacy & Data Security",
                                 fontSize = 13.sp,
-                                color = Color(0xFF64748B),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontWeight = FontWeight.Medium
                             )
                             Icon(
                                 imageVector = if (isPermissionNoticeExpanded) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
                                 contentDescription = null,
-                                tint = Color(0xFF64748B),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -256,8 +256,8 @@ fun LandingScreen(
                         ) {
                             Surface(
                                 shape = RoundedCornerShape(14.dp),
-                                color = Color(0xFFF8FAFC),
-                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 10.dp)
@@ -267,27 +267,27 @@ fun LandingScreen(
                                     verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     Text(
-                                        text = "🔒 Zero Database Architecture",
+                                        text = "🔒 Private & Local First",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 12.5.sp,
-                                        color = Color(0xFF36245A)
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = "• Nalama requests scoped Google Drive access solely to create and manage '/nalama.family' for your biometrics and gym logs.",
+                                        text = "• Nalama writes backup records only to your personal Google Drive and Sheets.",
                                         fontSize = 12.sp,
-                                        color = Color(0xFF475569),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         lineHeight = 17.sp
                                     )
                                     Text(
-                                        text = "• No analytics, telemetry, or metric data is sent to external servers.",
+                                        text = "• No metric or workout data is transmitted to third-party databases.",
                                         fontSize = 12.sp,
-                                        color = Color(0xFF475569),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         lineHeight = 17.sp
                                     )
                                     Text(
-                                        text = "• Health Connect reads run exclusively on-device.",
+                                        text = "• Health data reading operates entirely on this device.",
                                         fontSize = 12.sp,
-                                        color = Color(0xFF475569),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         lineHeight = 17.sp
                                     )
                                 }
@@ -491,7 +491,8 @@ fun LandingScreen(
 
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFFF3EDF9),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -502,13 +503,13 @@ fun LandingScreen(
                                 Icon(
                                     Icons.Outlined.Shield,
                                     contentDescription = null,
-                                    tint = Color(0xFF36245A),
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Text(
-                                    text = "Your private storage token remains on this phone.",
-                                    fontSize = 11.5.sp,
-                                    color = Color(0xFF36245A),
+                                    text = "Your credentials stay securely on your device.",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
@@ -523,7 +524,10 @@ fun LandingScreen(
                             val finalName = if (inputName.isBlank()) "Karthick Vijay" else inputName.trim()
                             onSignInWithGoogle(finalEmail, finalName)
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF36245A)),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
                         modifier = Modifier.testTag("confirm_google_sign_in_button")
                     ) {
                         Text("Connect & Continue", fontWeight = FontWeight.Bold)
@@ -531,7 +535,11 @@ fun LandingScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showGoogleSignInDialog = false }) {
-                        Text("Cancel")
+                        Text(
+                            "Cancel",
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             )
