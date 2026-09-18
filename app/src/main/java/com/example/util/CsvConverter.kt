@@ -32,9 +32,46 @@ object CsvConverter {
         "lean_body_mass_kg"
     ).joinToString(",")
 
+    fun getHeaderList(): List<String> = CSV_HEADER.split(",")
+
+    /**
+     * Extracts tabular cell values for each record, ready for direct spreadsheet rows.
+     */
+    fun toRowList(records: List<DailyRecord>): List<List<Any?>> {
+        return records.map { record ->
+            listOf(
+                record.date,
+                record.sources.joinToString(";"),
+                record.activity.steps,
+                record.activity.distanceMeters,
+                record.activity.totalCaloriesKcal,
+                record.activity.activeCaloriesKcal,
+                record.activity.activeDurationMinutes,
+                record.activity.vo2MaxMlKgMin?.avg ?: "",
+                record.sleep.totalSleepMinutes,
+                record.sleep.lightSleepMinutes,
+                record.sleep.deepSleepMinutes,
+                record.sleep.remSleepMinutes,
+                record.sleep.awakeMinutes,
+                record.sleep.sleepEfficiencyScore,
+                record.vitals.restingHeartRateBpm?.min ?: "",
+                record.vitals.restingHeartRateBpm?.max ?: "",
+                record.vitals.restingHeartRateBpm?.avg ?: "",
+                record.vitals.heartRateVariabilityMs?.avg ?: "",
+                record.vitals.oxygenSaturationPct?.avg ?: "",
+                record.vitals.bloodPressureMmHg?.systolic ?: "",
+                record.vitals.bloodPressureMmHg?.diastolic ?: "",
+                record.vitals.bloodPressureMmHg?.pulse ?: "",
+                record.bodyMeasurements.weightKg ?: "",
+                record.bodyMeasurements.bodyFatPct ?: "",
+                record.bodyMeasurements.leanBodyMassKg ?: ""
+            )
+        }
+    }
+
     /**
      * Converts records to CSV string.
-     * @param includeHeader true if creating new file or overwrite; false if purely appending rows.
+     * Always includes headers to ensure Drive and Apps Script handlers have proper schema.
      */
     fun toCsvString(records: List<DailyRecord>, includeHeader: Boolean = true): String {
         val sb = StringBuilder()

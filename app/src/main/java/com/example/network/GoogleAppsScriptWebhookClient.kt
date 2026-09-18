@@ -7,6 +7,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -33,254 +34,14 @@ class GoogleAppsScriptWebhookClient {
     companion object {
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
-        /**
-         * Clean function-body snippet designed to paste directly inside Google's default:
-         * function myFunction() {
-         *   [PASTE HERE]
-         * }
-         *
-         * It delegates myFunction to handleWebhook, defines doPost(e) and doGet(e),
-         * and completes smoothly with zero syntax errors.
-         * Formatted with strict 2-space indentation and UNIX newlines (\n) to prevent
-         * mobile auto-indent expansion and line-wrap spacing issues.
-         */
-        val MY_FUNCTION_APPS_SCRIPT_CONTENT = listOf(
-            "  return handleWebhook(arguments[0]);",
-            "}",
-            "",
-            "function doPost(e) {",
-            "  return handleWebhook(e);",
-            "}",
-            "",
-            "function doGet(e) {",
-            "  return ContentService.createTextOutput(JSON.stringify({ status: \"active\", message: \"Nalama Webhook is running\" }))",
-            "    .setMimeType(ContentService.MimeType.JSON);",
-            "}",
-            "",
-            "function handleWebhook(e) {",
-            "  try {",
-            "    if (!e || !e.postData || !e.postData.contents) {",
-            "      return ContentService.createTextOutput(JSON.stringify({ status: \"error\", message: \"No post data received\" }))",
-            "        .setMimeType(ContentService.MimeType.JSON);",
-            "    }",
-            "",
-            "    var payload = JSON.parse(e.postData.contents);",
-            "    var sourceApp = payload.sourceApp || \"HealthConnect\";",
-            "    var folderPath = payload.folderPath || (sourceApp === \"Hevy\" ? \"nalama.family/imports/gym_workouts\" : \"nalama.family/imports/health_data\");",
-            "    var format = payload.format || \"csv\";",
-            "    var writeMode = payload.writeMode || \"append\";",
-            "    var fileName = payload.fileName || (sourceApp === \"Hevy\" ? \"hevy_workouts\" : \"biometrics_daily\");",
-            "",
-            "    var folder = DriveApp.getRootFolder();",
-            "    var parts = folderPath.split(\"/\");",
-            "    for (var i = 0; i < parts.length; i++) {",
-            "      var name = parts[i].trim();",
-            "      if (!name) continue;",
-            "      var sub = folder.getFoldersByName(name);",
-            "      folder = sub.hasNext() ? sub.next() : folder.createFolder(name);",
-            "    }",
-            "",
-            "    var filesUpdated = [];",
-            "",
-            "    if (format === \"csv\" || format === \"both\") {",
-            "      var csvName = fileName + \".csv\";",
-            "      var csvFiles = folder.getFilesByName(csvName);",
-            "      if (csvFiles.hasNext() && writeMode === \"append\") {",
-            "        var cf = csvFiles.next();",
-            "        var lines = (payload.csvData || \"\").trim().split(\"\\n\");",
-            "        var toAppend = lines.slice(1).join(\"\\n\");",
-            "        if (toAppend.length > 0) {",
-            "          cf.setContent(cf.getBlob().getDataAsString() + \"\\n\" + toAppend);",
-            "        }",
-            "        filesUpdated.push(csvName + \" (appended)\");",
-            "      } else if (csvFiles.hasNext()) {",
-            "        csvFiles.next().setContent(payload.csvData || \"\");",
-            "        filesUpdated.push(csvName + \" (overwritten)\");",
-            "      } else {",
-            "        folder.createFile(csvName, payload.csvData || \"\", MimeType.CSV);",
-            "        filesUpdated.push(csvName + \" (created)\");",
-            "      }",
-            "    }",
-            "",
-            "    if (format === \"json\" || format === \"both\") {",
-            "      var jsonName = fileName + \".json\";",
-            "      var jsonFiles = folder.getFilesByName(jsonName);",
-            "      var jsonStr = typeof payload.jsonData === \"string\" ? payload.jsonData : JSON.stringify(payload.jsonData, null, 2);",
-            "",
-            "      if (jsonFiles.hasNext() && writeMode === \"append\") {",
-            "        var jf = jsonFiles.next();",
-            "        try {",
-            "          var old = JSON.parse(jf.getBlob().getDataAsString());",
-            "          if (sourceApp === \"Hevy\" && old.workouts && payload.jsonData && payload.jsonData.workouts) {",
-            "            var existingIds = new Set(old.workouts.map(function(w) { return w.workoutId; }));",
-            "            payload.jsonData.workouts.forEach(function(w) {",
-            "              if (!existingIds.has(w.workoutId)) old.workouts.push(w);",
-            "            });",
-            "            old.syncedAt = payload.syncedAt || new Date().toISOString();",
-            "            jf.setContent(JSON.stringify(old, null, 2));",
-            "          } else if (old.dailyRecords && payload.jsonData && payload.jsonData.dailyRecords) {",
-            "            var existingDates = new Set(old.dailyRecords.map(function(r) { return r.date; }));",
-            "            payload.jsonData.dailyRecords.forEach(function(rec) {",
-            "              if (!existingDates.has(rec.date)) old.dailyRecords.push(rec);",
-            "            });",
-            "            old.exportedAt = payload.exportedAt;",
-            "            jf.setContent(JSON.stringify(old, null, 2));",
-            "          } else {",
-            "            jf.setContent(jsonStr);",
-            "          }",
-            "        } catch (err) {",
-            "          jf.setContent(jsonStr);",
-            "        }",
-            "        filesUpdated.push(jsonName + \" (appended)\");",
-            "      } else if (jsonFiles.hasNext()) {",
-            "        jsonFiles.next().setContent(jsonStr);",
-            "        filesUpdated.push(jsonName + \" (overwritten)\");",
-            "      } else {",
-            "        folder.createFile(jsonName, jsonStr, MimeType.PLAIN_TEXT);",
-            "        filesUpdated.push(jsonName + \" (created)\");",
-            "      }",
-            "    }",
-            "",
-            "    return ContentService.createTextOutput(JSON.stringify({",
-            "      status: \"success\",",
-            "      sourceApp: sourceApp,",
-            "      message: \"Export processed successfully\",",
-            "      folder: folderPath,",
-            "      files: filesUpdated,",
-            "      recordsCount: payload.recordsCount || 1",
-            "    })).setMimeType(ContentService.MimeType.JSON);",
-            "",
-            "  } catch (err) {",
-            "    return ContentService.createTextOutput(JSON.stringify({",
-            "      status: \"error\",",
-            "      message: err.toString()",
-            "    })).setMimeType(ContentService.MimeType.JSON);",
-            "  }"
-        ).joinToString("\n")
+        val MY_FUNCTION_APPS_SCRIPT_CONTENT: String
+            get() = AppsScriptTemplates.MY_FUNCTION_APPS_SCRIPT_CONTENT
 
-        /**
-         * Full standalone Code.gs script for users who prefer to clear the entire editor.
-         */
-        val FULL_APPS_SCRIPT_CODE = listOf(
-            "/**",
-            " * Google Apps Script Webhook Handler for Health Connect & Hevy Gym Sync",
-            " * Target Folder: My Drive / nalama.family / imports / ...",
-            " */",
-            "function doPost(e) {",
-            "  return handleWebhook(e);",
-            "}",
-            "",
-            "function doGet(e) {",
-            "  return ContentService.createTextOutput(JSON.stringify({ status: \"active\", message: \"Nalama Webhook is running\" }))",
-            "    .setMimeType(ContentService.MimeType.JSON);",
-            "}",
-            "",
-            "function handleWebhook(e) {",
-            "  try {",
-            "    if (!e || !e.postData || !e.postData.contents) {",
-            "      return ContentService.createTextOutput(JSON.stringify({ status: \"error\", message: \"No post data received\" }))",
-            "        .setMimeType(ContentService.MimeType.JSON);",
-            "    }",
-            "",
-            "    var payload = JSON.parse(e.postData.contents);",
-            "    var sourceApp = payload.sourceApp || \"HealthConnect\";",
-            "    var folderPath = payload.folderPath || (sourceApp === \"Hevy\" ? \"nalama.family/imports/gym_workouts\" : \"nalama.family/imports/health_data\");",
-            "    var format = payload.format || \"csv\";",
-            "    var writeMode = payload.writeMode || \"append\";",
-            "    var fileName = payload.fileName || (sourceApp === \"Hevy\" ? \"hevy_workouts\" : \"biometrics_daily\");",
-            "",
-            "    var folder = DriveApp.getRootFolder();",
-            "    var parts = folderPath.split(\"/\");",
-            "    for (var i = 0; i < parts.length; i++) {",
-            "      var name = parts[i].trim();",
-            "      if (!name) continue;",
-            "      var sub = folder.getFoldersByName(name);",
-            "      folder = sub.hasNext() ? sub.next() : folder.createFolder(name);",
-            "    }",
-            "",
-            "    var filesUpdated = [];",
-            "",
-            "    if (format === \"csv\" || format === \"both\") {",
-            "      var csvName = fileName + \".csv\";",
-            "      var csvFiles = folder.getFilesByName(csvName);",
-            "      if (csvFiles.hasNext() && writeMode === \"append\") {",
-            "        var cf = csvFiles.next();",
-            "        var lines = (payload.csvData || \"\").trim().split(\"\\n\");",
-            "        var toAppend = lines.slice(1).join(\"\\n\");",
-            "        if (toAppend.length > 0) {",
-            "          cf.setContent(cf.getBlob().getDataAsString() + \"\\n\" + toAppend);",
-            "        }",
-            "        filesUpdated.push(csvName + \" (appended)\");",
-            "      } else if (csvFiles.hasNext()) {",
-            "        csvFiles.next().setContent(payload.csvData || \"\");",
-            "        filesUpdated.push(csvName + \" (overwritten)\");",
-            "      } else {",
-            "        folder.createFile(csvName, payload.csvData || \"\", MimeType.CSV);",
-            "        filesUpdated.push(csvName + \" (created)\");",
-            "      }",
-            "    }",
-            "",
-            "    if (format === \"json\" || format === \"both\") {",
-            "      var jsonName = fileName + \".json\";",
-            "      var jsonFiles = folder.getFilesByName(jsonName);",
-            "      var jsonStr = typeof payload.jsonData === \"string\" ? payload.jsonData : JSON.stringify(payload.jsonData, null, 2);",
-            "",
-            "      if (jsonFiles.hasNext() && writeMode === \"append\") {",
-            "        var jf = jsonFiles.next();",
-            "        try {",
-            "          var old = JSON.parse(jf.getBlob().getDataAsString());",
-            "          if (sourceApp === \"Hevy\" && old.workouts && payload.jsonData && payload.jsonData.workouts) {",
-            "            var existingIds = new Set(old.workouts.map(function(w) { return w.workoutId; }));",
-            "            payload.jsonData.workouts.forEach(function(w) {",
-            "              if (!existingIds.has(w.workoutId)) old.workouts.push(w);",
-            "            });",
-            "            old.syncedAt = payload.syncedAt || new Date().toISOString();",
-            "            jf.setContent(JSON.stringify(old, null, 2));",
-            "          } else if (old.dailyRecords && payload.jsonData && payload.jsonData.dailyRecords) {",
-            "            var existingDates = new Set(old.dailyRecords.map(function(r) { return r.date; }));",
-            "            payload.jsonData.dailyRecords.forEach(function(rec) {",
-            "              if (!existingDates.has(rec.date)) old.dailyRecords.push(rec);",
-            "            });",
-            "            old.exportedAt = payload.exportedAt;",
-            "            jf.setContent(JSON.stringify(old, null, 2));",
-            "          } else {",
-            "            jf.setContent(jsonStr);",
-            "          }",
-            "        } catch (err) {",
-            "          jf.setContent(jsonStr);",
-            "        }",
-            "        filesUpdated.push(jsonName + \" (appended)\");",
-            "      } else if (jsonFiles.hasNext()) {",
-            "        jsonFiles.next().setContent(jsonStr);",
-            "        filesUpdated.push(jsonName + \" (overwritten)\");",
-            "      } else {",
-            "        folder.createFile(jsonName, jsonStr, MimeType.PLAIN_TEXT);",
-            "        filesUpdated.push(jsonName + \" (created)\");",
-            "      }",
-            "    }",
-            "",
-            "    return ContentService.createTextOutput(JSON.stringify({",
-            "      status: \"success\",",
-            "      sourceApp: sourceApp,",
-            "      message: \"Export processed successfully\",",
-            "      folder: folderPath,",
-            "      files: filesUpdated,",
-            "      recordsCount: payload.recordsCount || 1",
-            "    })).setMimeType(ContentService.MimeType.JSON);",
-            "",
-            "  } catch (err) {",
-            "    return ContentService.createTextOutput(JSON.stringify({",
-            "      status: \"error\",",
-            "      message: err.toString()",
-            "    })).setMimeType(ContentService.MimeType.JSON);",
-            "  }",
-            "}"
-        ).joinToString("\n")
+        val FULL_APPS_SCRIPT_CODE: String
+            get() = AppsScriptTemplates.FULL_APPS_SCRIPT_CODE
 
-        /**
-         * Backward compatible reference defaulting to the clean function content.
-         */
-        val SAMPLE_APPS_SCRIPT_CODE = MY_FUNCTION_APPS_SCRIPT_CONTENT
+        val SAMPLE_APPS_SCRIPT_CODE: String
+            get() = AppsScriptTemplates.SAMPLE_APPS_SCRIPT_CODE
     }
 
     /**
@@ -310,8 +71,17 @@ class GoogleAppsScriptWebhookClient {
             val jsonFormatted = JsonConverter.toJsonString(payload, indentSpaces = 2)
             val csvFormatted = CsvConverter.toCsvString(
                 records = payload.dailyRecords,
-                includeHeader = (writeMode == WriteMode.OVERWRITE)
+                includeHeader = true
             )
+
+            val sheetRowsArray = JSONArray().apply {
+                CsvConverter.toRowList(payload.dailyRecords).forEach { rowList ->
+                    val rowArr = JSONArray()
+                    rowList.forEach { rowArr.put(it ?: "") }
+                    put(rowArr)
+                }
+            }
+            val sheetHeadersArray = JSONArray(CsvConverter.getHeaderList())
 
             val requestJson = JSONObject().apply {
                 put("action", "export_health_data")
@@ -333,6 +103,8 @@ class GoogleAppsScriptWebhookClient {
                 })
                 put("jsonData", JSONObject(jsonFormatted))
                 put("csvData", csvFormatted)
+                put("sheetHeaders", sheetHeadersArray)
+                put("sheetRows", sheetRowsArray)
                 put("recordsCount", payload.dailyRecords.size)
             }
 
@@ -357,7 +129,7 @@ class GoogleAppsScriptWebhookClient {
     }
 
     /**
-     * Posts Hevy Gym Workouts export payload to Google Apps Script Webhook.
+     * Posts Hevy Gym workouts export payload to Google Apps Script Webhook.
      */
     suspend fun postWorkoutExport(
         webhookUrl: String,
@@ -383,8 +155,17 @@ class GoogleAppsScriptWebhookClient {
             val jsonFormatted = WorkoutJsonConverter.toJsonString(payload, indentSpaces = 2)
             val csvFormatted = WorkoutCsvConverter.toCsvString(
                 workouts = payload.workouts,
-                includeHeader = (writeMode == WriteMode.OVERWRITE)
+                includeHeader = true
             )
+
+            val sheetRowsArray = JSONArray().apply {
+                WorkoutCsvConverter.toRowList(payload.workouts).forEach { rowList ->
+                    val rowArr = JSONArray()
+                    rowList.forEach { rowArr.put(it ?: "") }
+                    put(rowArr)
+                }
+            }
+            val sheetHeadersArray = JSONArray(WorkoutCsvConverter.getHeaderList())
 
             val requestJson = JSONObject().apply {
                 put("action", "export_gym_workouts")
@@ -405,6 +186,8 @@ class GoogleAppsScriptWebhookClient {
                 })
                 put("jsonData", JSONObject(jsonFormatted))
                 put("csvData", csvFormatted)
+                put("sheetHeaders", sheetHeadersArray)
+                put("sheetRows", sheetRowsArray)
                 put("recordsCount", payload.workouts.size)
             }
 

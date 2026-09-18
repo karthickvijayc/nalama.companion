@@ -27,6 +27,83 @@ object WorkoutCsvConverter {
         "notes"
     ).joinToString(",")
 
+    fun getHeaderList(): List<String> = WORKOUT_CSV_HEADER.split(",")
+
+    /**
+     * Extracts flattened row values for direct spreadsheet rows.
+     */
+    fun toRowList(workouts: List<WorkoutItem>): List<List<Any?>> {
+        val result = mutableListOf<List<Any?>>()
+        for (workout in workouts) {
+            if (workout.exercises.isEmpty()) {
+                result.add(listOf(
+                    workout.workoutId,
+                    workout.date,
+                    workout.title,
+                    workout.startTime,
+                    workout.endTime ?: "",
+                    workout.durationMinutes,
+                    workout.totalVolumeKg,
+                    workout.totalSets,
+                    workout.avgHeartRateBpm ?: "",
+                    workout.maxHeartRateBpm ?: "",
+                    workout.caloriesActualHr ?: "",
+                    "", "", "", "", "", "", "", "",
+                    workout.notes ?: ""
+                ))
+            } else {
+                for (ex in workout.exercises) {
+                    if (ex.sets.isEmpty()) {
+                        result.add(listOf(
+                            workout.workoutId,
+                            workout.date,
+                            workout.title,
+                            workout.startTime,
+                            workout.endTime ?: "",
+                            workout.durationMinutes,
+                            workout.totalVolumeKg,
+                            workout.totalSets,
+                            workout.avgHeartRateBpm ?: "",
+                            workout.maxHeartRateBpm ?: "",
+                            workout.caloriesActualHr ?: "",
+                            ex.exerciseName,
+                            ex.targetMuscleGroup ?: "",
+                            ex.equipment ?: "",
+                            "", "", "", "", "",
+                            workout.notes ?: ""
+                        ))
+                    } else {
+                        for (set in ex.sets) {
+                            result.add(listOf(
+                                workout.workoutId,
+                                workout.date,
+                                workout.title,
+                                workout.startTime,
+                                workout.endTime ?: "",
+                                workout.durationMinutes,
+                                workout.totalVolumeKg,
+                                workout.totalSets,
+                                workout.avgHeartRateBpm ?: "",
+                                workout.maxHeartRateBpm ?: "",
+                                workout.caloriesActualHr ?: "",
+                                ex.exerciseName,
+                                ex.targetMuscleGroup ?: "",
+                                ex.equipment ?: "",
+                                set.setNumber,
+                                set.setType,
+                                set.weightKg,
+                                set.reps,
+                                set.rpe ?: "",
+                                workout.notes ?: ""
+                            ))
+                        }
+                    }
+                }
+            }
+        }
+        return result
+    }
+
     /**
      * Converts a list of [WorkoutItem]s into a flattened CSV format suitable for Google Sheets.
      */

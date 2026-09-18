@@ -73,46 +73,171 @@ Download and install `nalama-companion.apk` on your Android device (see [Sideloa
 Nalama sends data to a lightweight, free Google Apps Script web app running in your own Google account:
 
 1. Open [Google Drive](https://drive.google.com) and create a new **Google Sheet** (e.g., named `Nalama Health Data`).
-2. In the menu, click **Extensions > Apps Script**.
-3. Paste the following script:
+2. In the menu, click **Extensions > Apps Script** (or create a new Apps Script standalone project).
+3. The editor opens with a default `function myFunction() { }`. Either tap the **Setup Script** button inside the app to copy the function snippet to paste directly inside, or replace the entire file with the following script:
 
 ```javascript
 function doPost(e) {
+  return handleWebhook(e);
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({ status: "active", message: "Nalama Webhook is running" }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleWebhook(e) {
   try {
-    var data = JSON.parse(e.postData.contents);
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    
-    // Auto-create headers if sheet is empty
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow([
-        "Timestamp", "Date", "Steps", "Distance (m)", "Active Calories", 
-        "Sleep (hrs)", "Resting HR", "Avg HR", "Blood Pressure", "SpO2 (%)", "Weight (kg)", "Workouts"
-      ]);
+    if (!e || !e.postData || !e.postData.contents) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "No post data received" }))
+        .setMimeType(ContentService.MimeType.JSON);
     }
-    
-    var record = data.record || {};
-    var workouts = data.workouts ? data.workouts.length + " workouts" : "0 workouts";
-    
-    sheet.appendRow([
-      new Date(),
-      record.date || "",
-      record.steps || 0,
-      record.distanceMeters || 0,
-      record.activeCaloriesBurned || 0,
-      record.sleepDurationMinutes ? (record.sleepDurationMinutes / 60).toFixed(1) : 0,
-      record.restingHeartRate || "",
-      record.avgHeartRate || "",
-      record.systolicBp ? (record.systolicBp + "/" + record.diastolicBp) : "",
-      record.bloodOxygenPercentage || "",
-      record.weightKg || "",
-      workouts
-    ]);
-    
-    return ContentService.createTextOutput(JSON.stringify({ status: "SUCCESS", message: "Data logged successfully" }))
-      .setMimeType(ContentService.MimeType.JSON);
+
+    var payload = JSON.parse(e.postData.contents);
+    var sourceApp = payload.sourceApp || "HealthConnect";
+    var folderPath = payload.folderPath || (sourceApp === "Hevy" ? "nalama.family/imports/gym_workouts" : "nalama.family/imports/health_data");
+    var format = payload.format || "csv";
+    var writeMode = payload.writeMode || "append";
+    var fileName = payload.fileName || (sourceApp === "Hevy" ? "hevy_workouts" : "biometrics_daily");
+
+    var filesUpdated = [];
+
+    // 1. Write directly to active bound Google Sheet
+    try {
+      var activeSs = SpreadsheetApp.getActiveSpreadsheet();
+      if (activeSs) {
+        writeToSheet(activeSs.getActiveSheet(), payload, writeMode);
+        filesUpdated.push("Active Sheet: " + activeSs.getName());
+      }
+    } catch (ssErr) {}
+
+    // 2. Locate or create destination folder in Google Drive
+    var folder = DriveApp.getRootFolder();
+    var parts = folderPath.split("/");
+    for (var i = 0; i < parts.length; i++) {
+      var name = parts[i].trim();
+      if (!name) continue;
+      var sub = folder.getFoldersByName(name);
+      folder = sub.hasNext() ? sub.next() : folder.createFolder(name);
+    }
+
+    // 3. Write to Google Sheet in Drive folder if exists
+    try {
+      var driveSheetFiles = folder.getFilesByType(MimeType.GOOGLE_SHEETS);
+      while (driveSheetFiles.hasNext()) {
+        var sf = driveSheetFiles.next();
+        var sName = sf.getName();
+        if (sName === fileName || sName === (fileName + ".csv") || sName.indexOf(fileName) !== -1) {
+          var targetSs = SpreadsheetApp.openById(sf.getId());
+          writeToSheet(targetSs.getActiveSheet(), payload, writeMode);
+          filesUpdated.push("Drive Sheet: " + sName);
+          break;
+        }
+      }
+    } catch (dsErr) {}
+
+    // 4. Update CSV File in Google Drive
+    if (format === "csv" || format === "both" || filesUpdated.length === 0) {
+      var csvName = fileName + ".csv";
+      var csvFiles = folder.getFilesByName(csvName);
+      var csvContent = payload.csvData || "";
+
+      if (csvFiles.hasNext()) {
+        var cf = csvFiles.next();
+        if (writeMode === "append") {
+          var oldText = cf.getBlob().getDataAsString();
+          var newLines = csvContent.trim().split("\n");
+          if (!oldText || oldText.trim().length === 0) {
+            cf.setContent(csvContent);
+          } else {
+            var toAppend = [];
+            for (var j = 0; j < newLines.length; j++) {
+              var line = newLines[j].trim();
+              if (!line) continue;
+              if (j === 0 && (line.toLowerCase().startsWith("date") || line.toLowerCase().startsWith("workout_id"))) {
+                continue;
+              }
+              toAppend.push(line);
+            }
+            if (toAppend.length > 0) {
+              cf.setContent(oldText.trim() + "\n" + toAppend.join("\n") + "\n");
+            }
+          }
+          filesUpdated.push(csvName + " (appended)");
+        } else {
+          cf.setContent(csvContent);
+          filesUpdated.push(csvName + " (overwritten)");
+        }
+      } else {
+        folder.createFile(csvName, csvContent, MimeType.CSV);
+        filesUpdated.push(csvName + " (created)");
+      }
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      sourceApp: sourceApp,
+      message: "Export processed successfully",
+      folder: folderPath,
+      files: filesUpdated,
+      recordsCount: payload.recordsCount || 1
+    })).setMimeType(ContentService.MimeType.JSON);
+
   } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ status: "ERROR", message: err.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "error",
+      message: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function writeToSheet(sheet, payload, writeMode) {
+  var headers = payload.sheetHeaders;
+  var rows = payload.sheetRows;
+
+  if (!rows || rows.length === 0) {
+    var rawLines = (payload.csvData || "").trim().split("\n");
+    if (rawLines.length > 0) {
+      if (!headers || headers.length === 0) headers = rawLines[0].split(",");
+      rows = [];
+      for (var i = 1; i < rawLines.length; i++) {
+        if (rawLines[i].trim()) rows.push(rawLines[i].split(","));
+      }
+    }
+  }
+
+  if (sheet.getLastRow() === 0 && headers && headers.length > 0) {
+    sheet.appendRow(headers);
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
+    sheet.setFrozenRows(1);
+  }
+
+  if (!rows || rows.length === 0) return;
+
+  if (writeMode === "overwrite") {
+    if (sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
+    for (var r = 0; r < rows.length; r++) {
+      sheet.appendRow(rows[r]);
+    }
+  } else {
+    var lastRow = sheet.getLastRow();
+    var existingKeys = {};
+    if (lastRow > 1) {
+      var keyValues = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+      for (var k = 0; k < keyValues.length; k++) {
+        var val = String(keyValues[k][0]).trim();
+        if (val) existingKeys[val] = k + 2;
+      }
+    }
+    for (var r = 0; r < rows.length; r++) {
+      var row = rows[r];
+      var key = String(row[0]).trim();
+      if (existingKeys[key]) {
+        sheet.getRange(existingKeys[key], 1, 1, row.length).setValues([row]);
+      } else {
+        sheet.appendRow(row);
+      }
+    }
   }
 }
 ```
