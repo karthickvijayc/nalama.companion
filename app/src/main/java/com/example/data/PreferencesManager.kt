@@ -30,7 +30,9 @@ data class AppSettings(
     val connectedEmail: String = "",
     val connectedDisplayName: String = "",
     val selectedLanguage: String = "தமிழ் (Tamil)",
-    val hasCompletedOnboarding: Boolean = false
+    val hasCompletedOnboarding: Boolean = false,
+    val hasCompletedInitialBulkExport: Boolean = false,
+    val archiveMaxDays: Int = 180                      // Active file retains max 180 days, older moved to [file]_YYYY
 )
 
 class PreferencesManager(context: Context) {
@@ -74,7 +76,9 @@ class PreferencesManager(context: Context) {
             connectedEmail = prefs.getString(KEY_CONNECTED_EMAIL, "") ?: "",
             connectedDisplayName = prefs.getString(KEY_CONNECTED_DISPLAY_NAME, "") ?: "",
             selectedLanguage = prefs.getString(KEY_SELECTED_LANGUAGE, "தமிழ் (Tamil)") ?: "தமிழ் (Tamil)",
-            hasCompletedOnboarding = prefs.getBoolean(KEY_HAS_COMPLETED_ONBOARDING, false)
+            hasCompletedOnboarding = prefs.getBoolean(KEY_HAS_COMPLETED_ONBOARDING, false),
+            hasCompletedInitialBulkExport = prefs.getBoolean(KEY_HAS_COMPLETED_INITIAL_BULK_EXPORT, false),
+            archiveMaxDays = prefs.getInt(KEY_ARCHIVE_MAX_DAYS, 180)
         )
     }
 
@@ -203,6 +207,17 @@ class PreferencesManager(context: Context) {
         )
     }
 
+    fun recordInitialBulkExportCompleted() {
+        prefs.edit().putBoolean(KEY_HAS_COMPLETED_INITIAL_BULK_EXPORT, true).apply()
+        _settings.value = _settings.value.copy(hasCompletedInitialBulkExport = true)
+    }
+
+    fun updateArchiveMaxDays(days: Int) {
+        val safeDays = days.coerceAtLeast(30)
+        prefs.edit().putInt(KEY_ARCHIVE_MAX_DAYS, safeDays).apply()
+        _settings.value = _settings.value.copy(archiveMaxDays = safeDays)
+    }
+
     companion object {
         private const val KEY_WEBHOOK_URL = "key_webhook_url"
         private const val KEY_SOURCE_APP = "key_source_app"
@@ -223,5 +238,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_CONNECTED_DISPLAY_NAME = "key_connected_display_name"
         private const val KEY_SELECTED_LANGUAGE = "key_selected_language"
         private const val KEY_HAS_COMPLETED_ONBOARDING = "key_has_completed_onboarding"
+        private const val KEY_HAS_COMPLETED_INITIAL_BULK_EXPORT = "key_has_completed_initial_bulk_export"
+        private const val KEY_ARCHIVE_MAX_DAYS = "key_archive_max_days"
     }
 }

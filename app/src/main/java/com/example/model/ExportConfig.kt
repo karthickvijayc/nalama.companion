@@ -10,11 +10,11 @@ enum class ExportFormat(val displayName: String) {
 }
 
 /**
- * Write/Append options: Append (default) or Overwrite.
+ * Write/Append options: In-place Upsert (default) or Full Overwrite.
  */
-enum class WriteMode(val displayName: String) {
-    APPEND("Append to existing"),
-    OVERWRITE("Overwrite / Replace")
+enum class WriteMode(val displayName: String, val description: String) {
+    APPEND("In-place Update", "Updates today's record in-place; appends new days"),
+    OVERWRITE("Full Overwrite", "Overwrites the entire file or sheet")
 }
 
 /**

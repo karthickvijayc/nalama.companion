@@ -248,9 +248,12 @@ class MainActivity : ComponentActivity() {
                                     onWriteModeSelected = { viewModel.updateWriteMode(it) },
                                     onFolderSelected = { viewModel.updateTargetFolder(it) },
                                     onExportNow = { viewModel.exportNow() },
+                                    onBulkExport = { viewModel.startBulkExport(365) },
                                     onRefreshHealthData = { viewModel.refreshActiveData() },
                                     onOpenScheduleSettings = { viewModel.selectTab(2) },
                                     onDismissExportResult = { viewModel.dismissExportResult() },
+                                    onDismissInitialBulkBanner = { viewModel.dismissInitialBulkExportPrompt() },
+                                    onDismissBulkExportDialog = { viewModel.dismissBulkExportDialog() },
                                     modifier = Modifier.padding(innerPadding)
                                 )
                                 1 -> HistoryScreen(
@@ -280,6 +283,7 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onNavigateToLanding = { viewModel.navigateTo(AppScreen.LANDING) },
                                     onDisconnectGoogle = { viewModel.disconnectGoogleAccount() },
+                                    onBulkExport = { viewModel.startBulkExport(365) },
                                     modifier = Modifier.padding(innerPadding)
                                 )
                             }

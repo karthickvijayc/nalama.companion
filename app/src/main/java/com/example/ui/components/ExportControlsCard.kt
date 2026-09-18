@@ -38,6 +38,7 @@ fun ExportControlsCard(
     syncIntervalMinutes: Int,
     isExporting: Boolean,
     onExportNow: () -> Unit,
+    onBulkExport: () -> Unit = {},
     onOpenScheduleSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -129,10 +130,10 @@ fun ExportControlsCard(
                 }
             }
 
-            // 2. Write Mode (Append vs Overwrite)
+            // 2. Write Mode (In-place update vs Overwrite)
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = "Write Mode (Default: Append)",
+                    text = "Write Mode",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -161,6 +162,11 @@ fun ExportControlsCard(
                         )
                     }
                 }
+                Text(
+                    text = selectedWriteMode.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                )
             }
 
             // 3. Target Folder Path
@@ -239,39 +245,90 @@ fun ExportControlsCard(
                 }
             }
 
-            // Big Export Now Button
-            Button(
-                onClick = onExportNow,
-                enabled = !isExporting,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .testTag("export_now_button"),
-                shape = RoundedCornerShape(12.dp)
+            // Archive & Retention Policy Note
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                if (isExporting) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text("Syncing ${sourceApp.displayName} to Drive...", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                } else {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Icon(
-                        imageVector = Icons.Default.CloudUpload,
+                        imageVector = Icons.Default.Inventory2,
                         contentDescription = null,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Active file: max 180 days. Older data is archived by year ([name]_YYYY) in the same folder.",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Action Buttons: Sync Now & Bulk Export
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onExportNow,
+                    enabled = !isExporting,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .testTag("export_now_button"),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    if (isExporting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("Syncing ${sourceApp.displayName} to Drive...", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.CloudUpload,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Sync ${sourceApp.displayName} to Drive / Sheets",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = onBulkExport,
+                    enabled = !isExporting,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp)
+                        .testTag("bulk_export_button"),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Backup,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Sync ${sourceApp.displayName} to Drive / Sheets",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
+                        text = "Bulk Export All History",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp
                     )
                 }
             }

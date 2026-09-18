@@ -136,7 +136,7 @@ function handleWebhook(e) {
       }
     } catch (dsErr) {}
 
-    // 4. Update CSV File in Google Drive
+    // 4. Update CSV File in Google Drive (In-place intra-day update by Date / Workout ID)
     if (format === "csv" || format === "both" || filesUpdated.length === 0) {
       var csvName = fileName + ".csv";
       var csvFiles = folder.getFilesByName(csvName);
@@ -149,21 +149,37 @@ function handleWebhook(e) {
           var newLines = csvContent.trim().split("\n");
           if (!oldText || oldText.trim().length === 0) {
             cf.setContent(csvContent);
+            filesUpdated.push(csvName + " (created)");
           } else {
-            var toAppend = [];
+            var existingLines = oldText.trim().split("\n");
+            var keyLineMap = {};
+            for (var k = 1; k < existingLines.length; k++) {
+              var eLine = existingLines[k].trim();
+              if (!eLine) continue;
+              var eKey = eLine.split(",")[0].trim().replace(/^"|"$/g, "");
+              if (eKey) keyLineMap[eKey] = k;
+            }
+            var updatedCount = 0;
+            var appendedCount = 0;
             for (var j = 0; j < newLines.length; j++) {
-              var line = newLines[j].trim();
-              if (!line) continue;
-              if (j === 0 && (line.toLowerCase().startsWith("date") || line.toLowerCase().startsWith("workout_id"))) {
+              var nLine = newLines[j].trim();
+              if (!nLine) continue;
+              if (j === 0 && (nLine.toLowerCase().startsWith("date") || nLine.toLowerCase().startsWith("workout_id"))) {
                 continue;
               }
-              toAppend.push(line);
+              var nKey = nLine.split(",")[0].trim().replace(/^"|"$/g, "");
+              if (nKey && keyLineMap[nKey] !== undefined) {
+                existingLines[keyLineMap[nKey]] = nLine;
+                updatedCount++;
+              } else {
+                existingLines.push(nLine);
+                if (nKey) keyLineMap[nKey] = existingLines.length - 1;
+                appendedCount++;
+              }
             }
-            if (toAppend.length > 0) {
-              cf.setContent(oldText.trim() + "\n" + toAppend.join("\n") + "\n");
-            }
+            cf.setContent(existingLines.join("\n") + "\n");
+            filesUpdated.push(csvName + " (in-place: " + updatedCount + " updated, " + appendedCount + " new)");
           }
-          filesUpdated.push(csvName + " (appended)");
         } else {
           cf.setContent(csvContent);
           filesUpdated.push(csvName + " (overwritten)");

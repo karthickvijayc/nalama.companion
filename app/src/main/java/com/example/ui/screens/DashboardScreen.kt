@@ -33,9 +33,12 @@ fun DashboardScreen(
     onWriteModeSelected: (WriteMode) -> Unit,
     onFolderSelected: (TargetFolder) -> Unit,
     onExportNow: () -> Unit,
+    onBulkExport: () -> Unit = {},
     onRefreshHealthData: () -> Unit,
     onOpenScheduleSettings: () -> Unit,
     onDismissExportResult: () -> Unit,
+    onDismissInitialBulkBanner: () -> Unit = {},
+    onDismissBulkExportDialog: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -49,6 +52,15 @@ fun DashboardScreen(
     ) {
         // Nalama Ecosystem Companion Banner
         NalamaCompanionBanner()
+
+        // First-Time Bulk History Export Banner
+        if (!uiState.settings.hasCompletedInitialBulkExport) {
+            InitialBulkExportBanner(
+                sourceAppName = uiState.settings.sourceApp.displayName,
+                onStartBulkExport = onBulkExport,
+                onDismiss = onDismissInitialBulkBanner
+            )
+        }
 
         // Status Row (Source App Status, Webhook URL, Auto-Sync)
         Row(
@@ -219,8 +231,18 @@ fun DashboardScreen(
             syncIntervalMinutes = uiState.settings.syncIntervalMinutes,
             isExporting = uiState.isExporting,
             onExportNow = onExportNow,
+            onBulkExport = onBulkExport,
             onOpenScheduleSettings = onOpenScheduleSettings
         )
+
+        // Bulk Export Progress Dialog
+        if (uiState.bulkExportState.isRunning || uiState.bulkExportState.isCompleted || uiState.bulkExportState.error != null) {
+            BulkExportProgressDialog(
+                bulkState = uiState.bulkExportState,
+                sourceAppName = uiState.settings.sourceApp.displayName,
+                onDismiss = onDismissBulkExportDialog
+            )
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
     }

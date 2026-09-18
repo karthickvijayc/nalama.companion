@@ -54,7 +54,9 @@ class GoogleAppsScriptWebhookClient {
         targetSubfolder: String,
         fileName: String,
         format: ExportFormat,
-        writeMode: WriteMode
+        writeMode: WriteMode,
+        archiveMaxDays: Int = 180,
+        isBulkExport: Boolean = false
     ): WebhookResult = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
 
@@ -106,6 +108,8 @@ class GoogleAppsScriptWebhookClient {
                 put("sheetHeaders", sheetHeadersArray)
                 put("sheetRows", sheetRowsArray)
                 put("recordsCount", payload.dailyRecords.size)
+                put("archiveMaxDays", archiveMaxDays)
+                put("isBulkExport", isBulkExport)
             }
 
             executePost(webhookUrl, requestJson, folderPath, startTime)
@@ -138,7 +142,9 @@ class GoogleAppsScriptWebhookClient {
         targetSubfolder: String,
         fileName: String,
         format: ExportFormat,
-        writeMode: WriteMode
+        writeMode: WriteMode,
+        archiveMaxDays: Int = 180,
+        isBulkExport: Boolean = false
     ): WebhookResult = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
 
@@ -189,6 +195,8 @@ class GoogleAppsScriptWebhookClient {
                 put("sheetHeaders", sheetHeadersArray)
                 put("sheetRows", sheetRowsArray)
                 put("recordsCount", payload.workouts.size)
+                put("archiveMaxDays", archiveMaxDays)
+                put("isBulkExport", isBulkExport)
             }
 
             executePost(webhookUrl, requestJson, folderPath, startTime)

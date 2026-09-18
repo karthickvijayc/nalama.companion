@@ -41,6 +41,7 @@ fun SettingsScreen(
     onOpenHealthConnectSettings: () -> Unit = {},
     onNavigateToLanding: () -> Unit = {},
     onDisconnectGoogle: () -> Unit = {},
+    onBulkExport: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var webhookUrlInput by remember(uiState.settings.webhookUrl) { mutableStateOf(uiState.settings.webhookUrl) }
@@ -530,6 +531,98 @@ fun SettingsScreen(
                     onCheckedChange = onToggleDemoMode,
                     modifier = Modifier.testTag("demo_mode_switch")
                 )
+            }
+        }
+
+        // Section: Retention & Archiving Policy
+        SettingsCard(title = "Retention & Archiving Policy", icon = Icons.Default.Inventory2) {
+            Text(
+                text = "Automated data lifecycle management keeps active export files lightweight while preserving full history in Google Drive.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text(
+                            text = "Active File Window",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${uiState.settings.archiveMaxDays} Days Max",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text(
+                            text = "Archiving Strategy",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.secondary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Yearly Files ([name]_YYYY)",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Intra-Day Deduplication",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Multiple exports on the same day perform in-place updates matching the date or workout ID, preventing duplicate rows.",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            OutlinedButton(
+                onClick = onBulkExport,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Backup,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Run Bulk History Export", fontWeight = FontWeight.SemiBold)
             }
         }
 

@@ -33,6 +33,18 @@ enum class AppScreen {
     MAIN
 }
 
+data class BulkExportState(
+    val isRunning: Boolean = false,
+    val current: Int = 0,
+    val total: Int = 0,
+    val percentage: Float = 0f,
+    val statusMessage: String = "",
+    val phase: String = "",
+    val recordsExported: Int = 0,
+    val error: String? = null,
+    val isCompleted: Boolean = false
+)
+
 data class HealthSyncUiState(
     val currentScreen: AppScreen = AppScreen.SPLASH,
     val settings: AppSettings = AppSettings(),
@@ -47,7 +59,8 @@ data class HealthSyncUiState(
     val testWebhookResult: WebhookResult? = null,
     val previewJson: String = "",
     val previewCsv: String = "",
-    val activeTab: Int = 0 // 0: Dashboard, 1: History, 2: Settings & Script, 3: Payload Preview
+    val activeTab: Int = 0, // 0: Dashboard, 1: History, 2: Settings & Script, 3: Payload Preview
+    val bulkExportState: BulkExportState = BulkExportState()
 )
 
 class HealthSyncViewModel(application: Application) : AndroidViewModel(application) {
@@ -203,7 +216,8 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     targetSubfolder = subfolder,
                     fileName = defaultFileName,
                     format = settings.exportFormat,
-                    writeMode = settings.writeMode
+                    writeMode = settings.writeMode,
+                    archiveMaxDays = settings.archiveMaxDays
                 )
 
                 val jsonPreview = WorkoutJsonConverter.toJsonString(workoutsPayload, 2)
@@ -268,7 +282,8 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     targetSubfolder = subfolder,
                     fileName = defaultFileName,
                     format = settings.exportFormat,
-                    writeMode = settings.writeMode
+                    writeMode = settings.writeMode,
+                    archiveMaxDays = settings.archiveMaxDays
                 )
 
                 val jsonPreview = JsonConverter.toJsonString(payload, 2)
@@ -424,5 +439,310 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
         prefs.completeOnboardingAsDemo()
         refreshActiveData()
         _uiState.update { it.copy(currentScreen = AppScreen.MAIN) }
+    }
+
+    /**
+     * Executes bulk export of all historical data.
+     * Manages API throttling limits, pagination for Hevy, date range chunking for Health Connect,
+     * and batches requests to Google Apps Script Webhook.
+     * Also marks initial bulk export as completed upon successful run.
+     */
+    fun startBulkExport(historyDays: Int = 365) {
+        val settings = _uiState.value.settings
+        if (settings.webhookUrl.isBlank()) {
+            _uiState.update {
+                it.copy(
+                    lastExportResult = WebhookResult(
+                        isSuccess = false,
+                        httpCode = null,
+                        message = "Please configure your Google Apps Script Webhook URL before running a bulk export.",
+                        durationMs = 0
+                    )
+                )
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    bulkExportState = BulkExportState(
+                        isRunning = true,
+                        current = 0,
+                        total = historyDays,
+                        percentage = 0.05f,
+                        statusMessage = "Preparing historical export...",
+                        phase = "INITIALIZING"
+                    )
+                )
+            }
+
+            val zoneId = try { ZoneId.of(settings.timezoneId) } catch (e: Exception) { ZoneId.systemDefault() }
+            val now = ZonedDateTime.now(zoneId)
+            val folderPath = settings.customFolderPath.ifBlank { settings.targetFolder.folderPath }
+            val subfolder = settings.targetFolder.subfolder
+            val defaultFileName = settings.targetFolder.defaultFileName
+
+            if (settings.sourceApp == SyncSourceApp.HEVY) {
+                // Hevy Bulk History Export
+                _uiState.update {
+                    it.copy(
+                        bulkExportState = it.bulkExportState.copy(
+                            statusMessage = "Fetching workouts from Hevy API with pagination...",
+                            phase = "FETCHING"
+                        )
+                    )
+                }
+
+                val hevyResult = hevyManager.fetchAllWorkoutsPaginated(
+                    apiKey = settings.hevyApiKey,
+                    isDemoMode = settings.demoModeEnabled,
+                    pageSize = 10
+                ) { page, totalPages, count ->
+                    val progress = (page.toFloat() / totalPages.coerceAtLeast(1).toFloat()) * 0.5f
+                    _uiState.update {
+                        it.copy(
+                            bulkExportState = it.bulkExportState.copy(
+                                current = page,
+                                total = totalPages,
+                                percentage = progress,
+                                statusMessage = "Fetched page $page of $totalPages ($count workouts)..."
+                            )
+                        )
+                    }
+                }
+
+                if (hevyResult.isFailure) {
+                    val errMsg = hevyResult.exceptionOrNull()?.localizedMessage ?: "Failed to fetch Hevy workouts"
+                    _uiState.update {
+                        it.copy(
+                            bulkExportState = it.bulkExportState.copy(
+                                isRunning = false,
+                                error = errMsg
+                            )
+                        )
+                    }
+                    return@launch
+                }
+
+                val allWorkouts = hevyResult.getOrNull() ?: emptyList()
+                if (allWorkouts.isEmpty()) {
+                    _uiState.update {
+                        it.copy(
+                            bulkExportState = it.bulkExportState.copy(
+                                isRunning = false,
+                                statusMessage = "No workouts found to export.",
+                                isCompleted = true
+                            )
+                        )
+                    }
+                    return@launch
+                }
+
+                // Batch workouts in chunks of 50 to avoid Apps Script HTTP payload/timeout limits
+                val chunks = allWorkouts.chunked(50)
+                var uploadedCount = 0
+                var lastResult: WebhookResult? = null
+
+                for ((idx, chunk) in chunks.withIndex()) {
+                    val chunkProgress = 0.5f + ((idx + 1).toFloat() / chunks.size.toFloat()) * 0.5f
+                    _uiState.update {
+                        it.copy(
+                            bulkExportState = it.bulkExportState.copy(
+                                percentage = chunkProgress,
+                                statusMessage = "Uploading chunk ${idx + 1} of ${chunks.size} (${chunk.size} workouts)...",
+                                phase = "UPLOADING"
+                            )
+                        )
+                    }
+
+                    val payload = WorkoutsExportPayload(
+                        exportVersion = "1.0",
+                        sourceApp = "Hevy",
+                        syncedAt = now.format(DateTimeFormatter.ISO_INSTANT),
+                        workouts = chunk
+                    )
+
+                    lastResult = webhookClient.postWorkoutExport(
+                        webhookUrl = settings.webhookUrl,
+                        payload = payload,
+                        folderPath = folderPath,
+                        targetSubfolder = subfolder,
+                        fileName = defaultFileName,
+                        format = settings.exportFormat,
+                        writeMode = WriteMode.APPEND,
+                        archiveMaxDays = settings.archiveMaxDays,
+                        isBulkExport = true
+                    )
+
+                    uploadedCount += chunk.size
+                    kotlinx.coroutines.delay(400L)
+                }
+
+                val finalSuccess = lastResult?.isSuccess == true
+                if (finalSuccess) {
+                    prefs.recordInitialBulkExportCompleted()
+                    val historyItem = ExportHistoryItem(
+                        id = UUID.randomUUID().toString(),
+                        timestamp = System.currentTimeMillis(),
+                        formattedDate = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
+                        status = ExportStatus.SUCCESS,
+                        format = settings.exportFormat,
+                        writeMode = WriteMode.APPEND,
+                        folderPath = folderPath,
+                        recordsCount = uploadedCount,
+                        httpStatusCode = lastResult?.httpCode,
+                        message = "Bulk export completed: $uploadedCount workouts exported (180-day active window + yearly archives).",
+                        payloadPreviewJson = "",
+                        payloadPreviewCsv = "",
+                        isManualTrigger = true,
+                        sourceApp = "Hevy"
+                    )
+                    historyStore.addHistoryItem(historyItem)
+                    prefs.recordSyncOutcome(
+                        timestamp = System.currentTimeMillis(),
+                        status = "Bulk exported $uploadedCount workouts to $folderPath",
+                        isSuccess = true
+                    )
+                }
+
+                _uiState.update {
+                    it.copy(
+                        bulkExportState = it.bulkExportState.copy(
+                            isRunning = false,
+                            percentage = 1f,
+                            isCompleted = true,
+                            recordsExported = uploadedCount,
+                            statusMessage = if (finalSuccess) "Bulk export complete! $uploadedCount workouts processed." else "Bulk export finished: ${lastResult?.message}"
+                        ),
+                        lastExportResult = lastResult
+                    )
+                }
+
+            } else {
+                // Health Connect Bulk History Export
+                val today = now.toLocalDate()
+                val startDate = today.minusDays(historyDays.toLong())
+
+                _uiState.update {
+                    it.copy(
+                        bulkExportState = it.bulkExportState.copy(
+                            statusMessage = "Reading $historyDays days of health records...",
+                            phase = "READING"
+                        )
+                    )
+                }
+
+                val records = healthManager.readHistoricalRecords(
+                    startDate = startDate,
+                    endDate = today,
+                    zoneId = zoneId,
+                    isDemoMode = settings.demoModeEnabled
+                ) { current, total, date ->
+                    val readProgress = (current.toFloat() / total.toFloat()) * 0.6f
+                    _uiState.update {
+                        it.copy(
+                            bulkExportState = it.bulkExportState.copy(
+                                current = current,
+                                total = total,
+                                percentage = readProgress,
+                                statusMessage = "Reading Health records: $date ($current/$total days)..."
+                            )
+                        )
+                    }
+                }
+
+                // Batch records into chunks of 60 days to prevent Apps Script timeouts
+                val chunks = records.chunked(60)
+                var uploadedCount = 0
+                var lastResult: WebhookResult? = null
+
+                for ((idx, chunk) in chunks.withIndex()) {
+                    val uploadProgress = 0.6f + ((idx + 1).toFloat() / chunks.size.toFloat()) * 0.4f
+                    _uiState.update {
+                        it.copy(
+                            bulkExportState = it.bulkExportState.copy(
+                                percentage = uploadProgress,
+                                statusMessage = "Uploading chunk ${idx + 1} of ${chunks.size} (${chunk.size} records)...",
+                                phase = "UPLOADING"
+                            )
+                        )
+                    }
+
+                    val payload = BiometricsExportPayload(
+                        exportVersion = "1.0",
+                        sourceApp = "HealthConnect",
+                        timezone = settings.timezoneId,
+                        exportedAt = now.format(DateTimeFormatter.ISO_INSTANT),
+                        dailyRecords = chunk
+                    )
+
+                    lastResult = webhookClient.postExport(
+                        webhookUrl = settings.webhookUrl,
+                        payload = payload,
+                        folderPath = folderPath,
+                        targetSubfolder = subfolder,
+                        fileName = defaultFileName,
+                        format = settings.exportFormat,
+                        writeMode = WriteMode.APPEND,
+                        archiveMaxDays = settings.archiveMaxDays,
+                        isBulkExport = true
+                    )
+
+                    uploadedCount += chunk.size
+                    kotlinx.coroutines.delay(400L)
+                }
+
+                val finalSuccess = lastResult?.isSuccess == true
+                if (finalSuccess) {
+                    prefs.recordInitialBulkExportCompleted()
+                    val historyItem = ExportHistoryItem(
+                        id = UUID.randomUUID().toString(),
+                        timestamp = System.currentTimeMillis(),
+                        formattedDate = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
+                        status = ExportStatus.SUCCESS,
+                        format = settings.exportFormat,
+                        writeMode = WriteMode.APPEND,
+                        folderPath = folderPath,
+                        recordsCount = uploadedCount,
+                        httpStatusCode = lastResult?.httpCode,
+                        message = "Bulk export completed: $uploadedCount daily records exported (180-day active window + yearly archives).",
+                        payloadPreviewJson = "",
+                        payloadPreviewCsv = "",
+                        isManualTrigger = true,
+                        sourceApp = "HealthConnect"
+                    )
+                    historyStore.addHistoryItem(historyItem)
+                    prefs.recordSyncOutcome(
+                        timestamp = System.currentTimeMillis(),
+                        status = "Bulk exported $uploadedCount records to $folderPath",
+                        isSuccess = true
+                    )
+                }
+
+                _uiState.update {
+                    it.copy(
+                        bulkExportState = it.bulkExportState.copy(
+                            isRunning = false,
+                            percentage = 1f,
+                            isCompleted = true,
+                            recordsExported = uploadedCount,
+                            statusMessage = if (finalSuccess) "Bulk export complete! $uploadedCount records processed across active and archive files." else "Export note: ${lastResult?.message}"
+                        ),
+                        lastExportResult = lastResult
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissBulkExportDialog() {
+        _uiState.update {
+            it.copy(bulkExportState = BulkExportState())
+        }
+    }
+
+    fun dismissInitialBulkExportPrompt() {
+        prefs.recordInitialBulkExportCompleted()
     }
 }
