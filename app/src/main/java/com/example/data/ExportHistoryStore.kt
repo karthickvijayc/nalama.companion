@@ -2,7 +2,6 @@ package com.example.data
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.example.model.ExportFormat
 import com.example.model.ExportHistoryItem
 import com.example.model.ExportStatus
 import com.example.model.WriteMode
@@ -37,15 +36,13 @@ class ExportHistoryStore(context: Context) {
                         timestamp = obj.optLong("timestamp", 0L),
                         formattedDate = obj.optString("formattedDate", ""),
                         status = try { ExportStatus.valueOf(obj.optString("status", ExportStatus.SUCCESS.name)) } catch (_: Exception) { ExportStatus.SUCCESS },
-                        format = try { ExportFormat.valueOf(obj.optString("format", ExportFormat.CSV.name)) } catch (_: Exception) { ExportFormat.CSV },
                         writeMode = try { WriteMode.valueOf(obj.optString("writeMode", WriteMode.APPEND.name)) } catch (_: Exception) { WriteMode.APPEND },
                         folderPath = obj.optString("folderPath", ""),
                         recordsCount = obj.optInt("recordsCount", 0),
-                        httpStatusCode = if (obj.has("httpStatusCode")) obj.optInt("httpStatusCode") else null,
                         message = obj.optString("message", ""),
-                        payloadPreviewJson = obj.optString("payloadPreviewJson", null),
                         payloadPreviewCsv = obj.optString("payloadPreviewCsv", null),
-                        isManualTrigger = obj.optBoolean("isManualTrigger", false)
+                        isManualTrigger = obj.optBoolean("isManualTrigger", false),
+                        sourceApp = obj.optString("sourceApp", "HealthConnect")
                     )
                 )
             }
@@ -77,15 +74,13 @@ class ExportHistoryStore(context: Context) {
                 put("timestamp", item.timestamp)
                 put("formattedDate", item.formattedDate)
                 put("status", item.status.name)
-                put("format", item.format.name)
                 put("writeMode", item.writeMode.name)
                 put("folderPath", item.folderPath)
                 put("recordsCount", item.recordsCount)
-                item.httpStatusCode?.let { put("httpStatusCode", it) }
                 put("message", item.message)
-                item.payloadPreviewJson?.let { put("payloadPreviewJson", it) }
                 item.payloadPreviewCsv?.let { put("payloadPreviewCsv", it) }
                 put("isManualTrigger", item.isManualTrigger)
+                put("sourceApp", item.sourceApp)
             }
             array.put(obj)
         }
@@ -96,3 +91,4 @@ class ExportHistoryStore(context: Context) {
         private const val KEY_HISTORY_JSON = "key_export_history_json"
     }
 }
+

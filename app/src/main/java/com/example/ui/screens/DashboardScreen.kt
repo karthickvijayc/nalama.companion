@@ -17,7 +17,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.AppSettings
 import com.example.health.HealthConnectAvailability
-import com.example.model.ExportFormat
 import com.example.model.SyncSourceApp
 import com.example.model.TargetFolder
 import com.example.model.WriteMode
@@ -29,7 +28,6 @@ fun DashboardScreen(
     uiState: HealthSyncUiState,
     onRequestHealthPermissions: () -> Unit,
     onSelectSourceApp: (SyncSourceApp) -> Unit,
-    onFormatSelected: (ExportFormat) -> Unit,
     onWriteModeSelected: (WriteMode) -> Unit,
     onFolderSelected: (TargetFolder) -> Unit,
     onExportNow: () -> Unit,
@@ -59,7 +57,7 @@ fun DashboardScreen(
             )
         }
 
-        // Status Row (Source App Status, Webhook URL, Auto-Sync)
+        // Status Row (Source App Status, Google Drive, Auto-Sync)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -72,7 +70,7 @@ fun DashboardScreen(
                 modifier = Modifier.weight(1f),
                 label = if (isHevy) "Source: Hevy" else "Health Connect",
                 status = if (isHevy) {
-                    if (isHevyOk) "API Key Set" else "Setup Needed"
+                    if (isHevyOk) "Ready" else "Setup Needed"
                 } else {
                     if (uiState.settings.demoModeEnabled) "Demo Mode" else if (isHcOk) "Connected" else "Needs Access"
                 },
@@ -87,14 +85,14 @@ fun DashboardScreen(
                 }
             )
 
-            // Webhook Status
-            val isWebhookConfigured = uiState.settings.webhookUrl.isNotBlank()
+            // Destination Status (Google Drive)
+            val isDriveConnected = uiState.settings.isGoogleConnected
             StatusBadge(
                 modifier = Modifier.weight(1f),
-                label = "Google Sheets",
-                status = if (isWebhookConfigured) "Configured" else "Needs URL",
-                icon = if (isWebhookConfigured) Icons.Default.CloudDone else Icons.Default.CloudOff,
-                isGood = isWebhookConfigured,
+                label = "Google Drive",
+                status = if (isDriveConnected) "Connected" else "Not Linked",
+                icon = if (isDriveConnected) Icons.Default.CloudDone else Icons.Default.CloudOff,
+                isGood = isDriveConnected,
                 onClick = onOpenScheduleSettings
             )
 
@@ -225,8 +223,6 @@ fun DashboardScreen(
         // Export Controls Card
         ExportControlsCard(
             sourceApp = uiState.settings.sourceApp,
-            selectedFormat = uiState.settings.exportFormat,
-            onFormatSelected = onFormatSelected,
             selectedWriteMode = uiState.settings.writeMode,
             onWriteModeSelected = onWriteModeSelected,
             selectedFolder = uiState.settings.targetFolder,

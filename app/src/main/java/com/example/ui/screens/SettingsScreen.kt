@@ -15,21 +15,15 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.AppSettings
-import com.example.health.HealthConnectAvailability
 import com.example.model.SyncSourceApp
-import com.example.model.TargetFolder
-import com.example.network.WebhookResult
 import com.example.ui.HealthSyncUiState
-import com.example.ui.components.AppsScriptDialog
 
 @Composable
 fun SettingsScreen(
     uiState: HealthSyncUiState,
     onUpdateSourceApp: (SyncSourceApp) -> Unit,
     onUpdateHevyApiKey: (String) -> Unit,
-    onUpdateWebhookUrl: (String) -> Unit,
-    onTestWebhook: (String) -> Unit,
+    onTestDriveConnection: () -> Unit,
     onDismissTestResult: () -> Unit,
     onUpdateSyncInterval: (Int) -> Unit,
     onUpdateAutoSync: (Boolean) -> Unit,
@@ -43,14 +37,8 @@ fun SettingsScreen(
     onBulkExport: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var webhookUrlInput by remember(uiState.settings.webhookUrl) { mutableStateOf(uiState.settings.webhookUrl) }
     var hevyApiKeyInput by remember(uiState.settings.hevyApiKey) { mutableStateOf(uiState.settings.hevyApiKey) }
-    var showAppsScriptDialog by remember { mutableStateOf(false) }
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-
-    if (showAppsScriptDialog) {
-        AppsScriptDialog(onDismiss = { showAppsScriptDialog = false })
-    }
 
     Column(
         modifier = modifier
@@ -59,8 +47,8 @@ fun SettingsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Section: Google Account & Storage Status
-        SettingsCard(title = "Google Account & Backup", icon = Icons.Default.CloudQueue) {
+        // Section: Google Account & Drive Storage
+        SettingsCard(title = "Google Account & Drive", icon = Icons.Default.CloudQueue) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -96,7 +84,7 @@ fun SettingsScreen(
                         text = if (uiState.settings.isGoogleConnected) {
                             uiState.settings.connectedEmail
                         } else {
-                            "Link your Google Drive for private backup"
+                            "Link your Google Drive for automatic backup"
                         },
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -123,6 +111,93 @@ fun SettingsScreen(
             }
 
             if (uiState.settings.isGoogleConnected) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Google Drive Folder",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = uiState.settings.customFolderPath.ifBlank { uiState.settings.targetFolder.folderPath },
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "Saves your health data as easy-to-open CSV files directly in your Drive.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                Button(
+                    onClick = onTestDriveConnection,
+                    enabled = !uiState.isTestingDrive,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    ),
+                    modifier = Modifier.fillMaxWidth().testTag("test_drive_connection_button")
+                ) {
+                    if (uiState.isTestingDrive) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Verifying Drive connection...", fontWeight = FontWeight.Bold)
+                    } else {
+                        Icon(Icons.Default.CloudDone, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Verify Drive Connection", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                // Test Result Banner
+                uiState.testDriveResult?.let { result ->
+                    Surface(
+                        color = if (result.isSuccess) Color(0xFFE6F4EA) else Color(0xFFFCE8E6),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (result.isSuccess) Icons.Default.CheckCircle else Icons.Default.Error,
+                                contentDescription = null,
+                                tint = if (result.isSuccess) Color(0xFF137333) else Color(0xFFC5221F),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (result.isSuccess) "Connection Successful" else "Connection Failed",
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (result.isSuccess) Color(0xFF137333) else Color(0xFFC5221F),
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    text = result.message,
+                                    color = if (result.isSuccess) Color(0xFF137333) else Color(0xFFC5221F),
+                                    fontSize = 11.sp
+                                )
+                            }
+                            IconButton(onClick = onDismissTestResult, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
@@ -140,10 +215,10 @@ fun SettingsScreen(
             }
         }
 
-        // Section 0: Source App Selection
+        // Section: Source App Selection
         SettingsCard(title = "Primary Sync Source", icon = Icons.Default.Apps) {
             Text(
-                text = "Choose which fitness ecosystem to sync to Google Sheets:",
+                text = "Choose which fitness app to sync to Google Drive:",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -177,7 +252,6 @@ fun SettingsScreen(
                 }
             }
 
-            // If Hevy selected, show Hevy API Key input
             if (uiState.settings.sourceApp == SyncSourceApp.HEVY) {
                 Spacer(modifier = Modifier.height(4.dp))
                 OutlinedTextField(
@@ -194,7 +268,7 @@ fun SettingsScreen(
                     singleLine = true,
                     supportingText = {
                         Text(
-                            text = if (hevyApiKeyInput.isBlank()) "API key required to fetch workouts from your account." else "Syncs workouts directly via https://api.hevyapp.com/v1/workouts",
+                            text = if (hevyApiKeyInput.isBlank()) "API key required to fetch workouts from your account." else "Configured",
                             fontSize = 11.sp
                         )
                     },
@@ -210,7 +284,6 @@ fun SettingsScreen(
                     }
                 )
 
-                // Hevy Developer Key & Pro Subscriber Notice Card
                 Surface(
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
                     shape = RoundedCornerShape(12.dp),
@@ -233,7 +306,7 @@ fun SettingsScreen(
                                 modifier = Modifier.size(18.dp)
                             )
                             Text(
-                                text = "Hevy Pro Subscription Required",
+                                text = "Hevy Pro Required",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary
@@ -241,7 +314,7 @@ fun SettingsScreen(
                         }
 
                         Text(
-                            text = "To generate an API key for your account, you must be a Hevy Pro subscriber. Once subscribed, generate your personal API key here:",
+                            text = "To generate an API key for your account, access your developer settings on Hevy:",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -262,7 +335,7 @@ fun SettingsScreen(
                                 modifier = Modifier.size(15.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("hevy.com/settings?developer", fontSize = 12.sp)
+                            Text("Open hevy.com/settings?developer", fontSize = 12.sp)
                         }
                     }
                 }
@@ -279,134 +352,7 @@ fun SettingsScreen(
             }
         }
 
-        // Section 1: Google Apps Script Webhook
-        SettingsCard(title = "Google Apps Script Webhook", icon = Icons.Default.Link) {
-            Text(
-                text = "Enter your Google Apps Script Web App URL to receive biometrics and workout data:",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            // Quick One-Click Creation Banner
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Need a Webhook URL?",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Text(
-                            text = "Auto-launch Google Script Studio & copy code in 1 tap.",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    FilledTonalButton(
-                        onClick = { showAppsScriptDialog = true },
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        modifier = Modifier.testTag("one_click_create_script_entry_button")
-                    ) {
-                        Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("1-Click Setup", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-
-            OutlinedTextField(
-                value = webhookUrlInput,
-                onValueChange = {
-                    webhookUrlInput = it
-                    onUpdateWebhookUrl(it)
-                },
-                label = { Text("Webhook URL (https://script.google.com/...)") },
-                placeholder = { Text("https://script.google.com/macros/s/.../exec") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("webhook_url_input"),
-                singleLine = true,
-                trailingIcon = {
-                    if (webhookUrlInput.isNotBlank()) {
-                        IconButton(onClick = {
-                            webhookUrlInput = ""
-                            onUpdateWebhookUrl("")
-                        }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear")
-                        }
-                    }
-                }
-            )
-
-            Button(
-                onClick = { onTestWebhook(webhookUrlInput) },
-                enabled = !uiState.isTestingWebhook && webhookUrlInput.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                modifier = Modifier.fillMaxWidth().testTag("test_webhook_button")
-            ) {
-                if (uiState.isTestingWebhook) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Testing...", fontWeight = FontWeight.Bold)
-                } else {
-                    Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Test Connection", fontWeight = FontWeight.Bold)
-                }
-            }
-
-            // Test Result Banner
-            uiState.testWebhookResult?.let { result ->
-                Surface(
-                    color = if (result.isSuccess) Color(0xFFE6F4EA) else Color(0xFFFCE8E6),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (result.isSuccess) Icons.Default.CheckCircle else Icons.Default.Error,
-                            contentDescription = null,
-                            tint = if (result.isSuccess) Color(0xFF137333) else Color(0xFFC5221F),
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = if (result.isSuccess) "Connection Successful (${result.durationMs}ms)" else "Connection Failed",
-                                fontWeight = FontWeight.Bold,
-                                color = if (result.isSuccess) Color(0xFF137333) else Color(0xFFC5221F),
-                                fontSize = 12.sp
-                            )
-                            Text(
-                                text = result.message,
-                                color = if (result.isSuccess) Color(0xFF137333) else Color(0xFFC5221F),
-                                fontSize = 11.sp
-                            )
-                        }
-                        IconButton(onClick = onDismissTestResult, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
-                        }
-                    }
-                }
-            }
-        }
-
-        // Section 2: Sync Schedule / Frequency
+        // Section: Sync Schedule & Frequency
         SettingsCard(title = "Schedule & Frequency", icon = Icons.Default.Timer) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -420,7 +366,7 @@ fun SettingsScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = "Runs periodic sync using Android WorkManager",
+                        text = "Automatically backs up health records to Drive",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -434,12 +380,11 @@ fun SettingsScreen(
 
             if (uiState.settings.autoSyncEnabled) {
                 Text(
-                    text = "Sync Frequency (Minutes):",
+                    text = "Sync Frequency:",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold
                 )
 
-                // Interval chips (15 default, 30, 60, 120)
                 val intervals = listOf(15, 30, 60, 120)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -452,7 +397,7 @@ fun SettingsScreen(
                             onClick = { onUpdateSyncInterval(mins) },
                             label = {
                                 Text(
-                                    text = if (mins == 15) "15m (Default)" else "${mins}m",
+                                    text = if (mins == 15) "15 min" else "${mins} min",
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     fontSize = 11.sp
                                 )
@@ -463,19 +408,13 @@ fun SettingsScreen(
                         )
                     }
                 }
-                Text(
-                    text = "Note: WorkManager enforces a minimum 15-minute periodic interval to optimize battery.",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
 
-        // Section: Bulk History Export
-        SettingsCard(title = "Bulk History Export", icon = Icons.Default.Backup) {
+        // Section: Bulk History Sync
+        SettingsCard(title = "Historical Sync", icon = Icons.Default.Backup) {
             Text(
-                text = "Export your full history from ${uiState.settings.sourceApp.displayName} to Google Drive & Sheets with automatic yearly archiving.",
+                text = "Export your past health records and workout history to Google Drive as CSV files.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -491,14 +430,14 @@ fun SettingsScreen(
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Run Bulk History Export", fontWeight = FontWeight.SemiBold)
+                Text("Sync Full History to Drive", fontWeight = FontWeight.SemiBold)
             }
         }
 
-        // Section 5: About Nalama Platform
-        SettingsCard(title = "About Nalama Platform", icon = Icons.Default.Info) {
+        // Section: About Nalama Platform
+        SettingsCard(title = "About Nalama", icon = Icons.Default.Info) {
             Text(
-                text = "Nalama Health Companion securely bridges your fitness metrics and workout logs into your personal Google Drive and Sheets.",
+                text = "Nalama Health Companion securely bridges your fitness metrics and workout logs into your personal Google Drive in CSV format.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

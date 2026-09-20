@@ -5,17 +5,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.HealthSyncApplication
 import com.example.data.AppSettings
+import com.example.drive.GoogleDriveDirectClient
 import com.example.health.HealthConnectAvailability
 import com.example.health.HealthConnectManager
 import com.example.health.HevySyncManager
 import com.example.model.*
-import com.example.network.GoogleAppsScriptWebhookClient
-import com.example.network.WebhookResult
 import com.example.sync.SyncScheduler
 import com.example.util.CsvConverter
-import com.example.util.JsonConverter
 import com.example.util.WorkoutCsvConverter
-import com.example.util.WorkoutJsonConverter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,6 +29,12 @@ enum class AppScreen {
     LANDING,
     MAIN
 }
+
+data class SyncResult(
+    val isSuccess: Boolean,
+    val message: String,
+    val durationMs: Long = 0
+)
 
 data class BulkExportState(
     val isRunning: Boolean = false,
@@ -54,12 +57,11 @@ data class HealthSyncUiState(
     val todayRecord: DailyRecord? = null,
     val workoutsPayload: WorkoutsExportPayload? = null,
     val isExporting: Boolean = false,
-    val lastExportResult: WebhookResult? = null,
-    val isTestingWebhook: Boolean = false,
-    val testWebhookResult: WebhookResult? = null,
-    val previewJson: String = "",
+    val lastExportResult: SyncResult? = null,
+    val isTestingDrive: Boolean = false,
+    val testDriveResult: SyncResult? = null,
     val previewCsv: String = "",
-    val activeTab: Int = 0, // 0: Dashboard, 1: History, 2: Settings & Script, 3: Payload Preview
+    val activeTab: Int = 0, // 0: Dashboard, 1: History, 2: Settings, 3: CSV Preview
     val bulkExportState: BulkExportState = BulkExportState()
 )
 
@@ -70,7 +72,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
     private val historyStore = app.historyStore
     private val healthManager = HealthConnectManager(application)
     private val hevyManager = HevySyncManager()
-    private val webhookClient = GoogleAppsScriptWebhookClient()
+    private val driveClient = GoogleDriveDirectClient(application)
 
     private val _uiState = MutableStateFlow(HealthSyncUiState())
     val uiState: StateFlow<HealthSyncUiState> = _uiState.asStateFlow()
@@ -132,17 +134,6 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                 else -> null
             }
 
-            val jsonPreview = record?.let {
-                val payload = BiometricsExportPayload(
-                    exportVersion = "1.0",
-                    sourceApp = "HealthConnect",
-                    timezone = settings.timezoneId,
-                    exportedAt = ZonedDateTime.now().format(DateTimeFormatter.ISO_INSTANT),
-                    dailyRecords = listOf(it)
-                )
-                JsonConverter.toJsonString(payload, 2)
-            } ?: "{\n  \"status\": \"Permission not granted or setup not complete\"\n}"
-
             val csvPreview = record?.let {
                 CsvConverter.toCsvString(listOf(it), settings.writeMode == WriteMode.OVERWRITE)
             } ?: "Permission not granted or setup not complete"
@@ -150,7 +141,6 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
             _uiState.update {
                 it.copy(
                     todayRecord = record,
-                    previewJson = jsonPreview,
                     previewCsv = csvPreview
                 )
             }
@@ -164,7 +154,6 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                 _uiState.update {
                     it.copy(
                         workoutsPayload = null,
-                        previewJson = "{\n  \"status\": \"Setup not complete: Hevy API key required\"\n}",
                         previewCsv = "Setup not complete: Hevy API key required"
                     )
                 }
@@ -183,13 +172,11 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                 workouts = emptyList()
             )
 
-            val jsonPreview = WorkoutJsonConverter.toJsonString(workoutsPayload, 2)
             val csvPreview = WorkoutCsvConverter.toCsvString(workoutsPayload.workouts, settings.writeMode == WriteMode.OVERWRITE)
 
             _uiState.update {
                 it.copy(
                     workoutsPayload = workoutsPayload,
-                    previewJson = jsonPreview,
                     previewCsv = csvPreview
                 )
             }
@@ -209,13 +196,10 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
             val defaultFileName = settings.targetFolder.defaultFileName
 
             if (settings.sourceApp == SyncSourceApp.HEVY) {
-                // Hevy Workouts Export
                 if (settings.hevyApiKey.isBlank() && !settings.demoModeEnabled) {
-                    val errorResult = WebhookResult(
+                    val errorResult = SyncResult(
                         isSuccess = false,
-                        httpCode = 400,
-                        message = "Setup not complete: Please configure your Hevy API key in Settings (Hevy Pro required, hevy.com/settings?developer).",
-                        durationMs = 0
+                        message = "Setup not complete: Please configure your Hevy API key in Settings (hevy.com/settings?developer)."
                     )
                     _uiState.update { it.copy(isExporting = false, lastExportResult = errorResult) }
                     return@launch
@@ -234,18 +218,21 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     )
                 }
 
-                val result = webhookClient.postWorkoutExport(
-                    webhookUrl = settings.webhookUrl,
+                val direct = driveClient.syncWorkoutsDirectly(
+                    accessToken = settings.googleOAuthAccessToken.ifBlank { null },
                     payload = workoutsPayload,
                     folderPath = folderPath,
                     targetSubfolder = subfolder,
                     fileName = defaultFileName,
-                    format = settings.exportFormat,
                     writeMode = settings.writeMode,
                     archiveMaxDays = settings.archiveMaxDays
                 )
+                val result = SyncResult(
+                    isSuccess = direct.isSuccess,
+                    message = direct.message,
+                    durationMs = direct.durationMs
+                )
 
-                val jsonPreview = WorkoutJsonConverter.toJsonString(workoutsPayload, 2)
                 val csvPreview = WorkoutCsvConverter.toCsvString(workoutsPayload.workouts, settings.writeMode == WriteMode.OVERWRITE)
 
                 val historyItem = ExportHistoryItem(
@@ -253,13 +240,10 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     timestamp = System.currentTimeMillis(),
                     formattedDate = formattedNow,
                     status = if (result.isSuccess) ExportStatus.SUCCESS else ExportStatus.FAILED,
-                    format = settings.exportFormat,
                     writeMode = settings.writeMode,
                     folderPath = folderPath,
                     recordsCount = workoutsPayload.workouts.size,
-                    httpStatusCode = result.httpCode,
                     message = result.message,
-                    payloadPreviewJson = jsonPreview,
                     payloadPreviewCsv = csvPreview,
                     isManualTrigger = true,
                     sourceApp = "Hevy"
@@ -277,12 +261,10 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                         isExporting = false,
                         lastExportResult = result,
                         workoutsPayload = workoutsPayload,
-                        previewJson = jsonPreview,
                         previewCsv = csvPreview
                     )
                 }
             } else {
-                // Health Connect Biometrics Export
                 val isAvailable = healthManager.checkAvailability() == HealthConnectAvailability.AVAILABLE
                 val hasPerms = healthManager.hasAllPermissions()
 
@@ -292,11 +274,9 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     } else {
                         "Permission not granted: Health Connect permissions have not been granted."
                     }
-                    val errorResult = WebhookResult(
+                    val errorResult = SyncResult(
                         isSuccess = false,
-                        httpCode = 400,
-                        message = msg,
-                        durationMs = 0
+                        message = msg
                     )
                     _uiState.update { it.copy(isExporting = false, lastExportResult = errorResult) }
                     return@launch
@@ -317,18 +297,21 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     dailyRecords = listOf(record)
                 )
 
-                val result = webhookClient.postExport(
-                    webhookUrl = settings.webhookUrl,
+                val direct = driveClient.syncBiometricsDirectly(
+                    accessToken = settings.googleOAuthAccessToken.ifBlank { null },
                     payload = payload,
                     folderPath = folderPath,
                     targetSubfolder = subfolder,
                     fileName = defaultFileName,
-                    format = settings.exportFormat,
                     writeMode = settings.writeMode,
                     archiveMaxDays = settings.archiveMaxDays
                 )
+                val result = SyncResult(
+                    isSuccess = direct.isSuccess,
+                    message = direct.message,
+                    durationMs = direct.durationMs
+                )
 
-                val jsonPreview = JsonConverter.toJsonString(payload, 2)
                 val csvPreview = CsvConverter.toCsvString(listOf(record), settings.writeMode == WriteMode.OVERWRITE)
 
                 val historyItem = ExportHistoryItem(
@@ -336,13 +319,10 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     timestamp = System.currentTimeMillis(),
                     formattedDate = formattedNow,
                     status = if (result.isSuccess) ExportStatus.SUCCESS else ExportStatus.FAILED,
-                    format = settings.exportFormat,
                     writeMode = settings.writeMode,
                     folderPath = folderPath,
                     recordsCount = 1,
-                    httpStatusCode = result.httpCode,
                     message = result.message,
-                    payloadPreviewJson = jsonPreview,
                     payloadPreviewCsv = csvPreview,
                     isManualTrigger = true,
                     sourceApp = "HealthConnect"
@@ -360,7 +340,6 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                         isExporting = false,
                         lastExportResult = result,
                         todayRecord = record,
-                        previewJson = jsonPreview,
                         previewCsv = csvPreview
                     )
                 }
@@ -368,16 +347,30 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun testWebhook(url: String) {
+    fun testDriveConnection() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isTestingWebhook = true, testWebhookResult = null) }
-            val result = webhookClient.testWebhookConnectivity(url)
-            _uiState.update { it.copy(isTestingWebhook = false, testWebhookResult = result) }
+            _uiState.update { it.copy(isTestingDrive = true, testDriveResult = null) }
+            val settings = prefs.settings.value
+            val folderPath = settings.customFolderPath.ifBlank { settings.targetFolder.folderPath }
+            val direct = driveClient.testDirectDriveConnection(
+                accessToken = settings.googleOAuthAccessToken.ifBlank { null },
+                folderPath = folderPath
+            )
+            val result = SyncResult(
+                isSuccess = direct.isSuccess,
+                message = direct.message,
+                durationMs = direct.durationMs
+            )
+            _uiState.update { it.copy(isTestingDrive = false, testDriveResult = result) }
         }
     }
 
+    fun updateGoogleOAuthAccessToken(token: String) {
+        prefs.updateGoogleOAuthAccessToken(token)
+    }
+
     fun dismissTestResult() {
-        _uiState.update { it.copy(testWebhookResult = null) }
+        _uiState.update { it.copy(testDriveResult = null) }
     }
 
     fun dismissExportResult() {
@@ -394,15 +387,6 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
         if (prefs.settings.value.sourceApp == SyncSourceApp.HEVY) {
             refreshHevyWorkouts()
         }
-    }
-
-    fun updateWebhookUrl(url: String) {
-        prefs.updateWebhookUrl(url)
-    }
-
-    fun updateExportFormat(format: ExportFormat) {
-        prefs.updateExportFormat(format)
-        refreshActiveData()
     }
 
     fun updateWriteMode(mode: WriteMode) {
@@ -484,26 +468,10 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     /**
-     * Executes bulk export of all historical data.
-     * Manages API throttling limits, pagination for Hevy, date range chunking for Health Connect,
-     * and batches requests to Google Apps Script Webhook.
-     * Also marks initial bulk export as completed upon successful run.
+     * Executes bulk export of all historical data directly to Google Drive as CSV.
      */
     fun startBulkExport(historyDays: Int = 365) {
         val settings = _uiState.value.settings
-        if (settings.webhookUrl.isBlank()) {
-            _uiState.update {
-                it.copy(
-                    lastExportResult = WebhookResult(
-                        isSuccess = false,
-                        httpCode = null,
-                        message = "Please configure your Google Apps Script Webhook URL before running a bulk export.",
-                        durationMs = 0
-                    )
-                )
-            }
-            return
-        }
 
         viewModelScope.launch {
             _uiState.update {
@@ -526,13 +494,12 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
             val defaultFileName = settings.targetFolder.defaultFileName
 
             if (settings.sourceApp == SyncSourceApp.HEVY) {
-                // Hevy Bulk History Export
                 if (settings.hevyApiKey.isBlank() && !settings.demoModeEnabled) {
                     _uiState.update {
                         it.copy(
                             bulkExportState = it.bulkExportState.copy(
                                 isRunning = false,
-                                error = "Setup not complete: Please configure your Hevy API key in Settings (Hevy Pro required, hevy.com/settings?developer)."
+                                error = "Setup not complete: Please configure your Hevy API key in Settings (hevy.com/settings?developer)."
                             )
                         )
                     }
@@ -542,7 +509,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                 _uiState.update {
                     it.copy(
                         bulkExportState = it.bulkExportState.copy(
-                            statusMessage = "Fetching workouts from Hevy API with pagination...",
+                            statusMessage = "Fetching workouts from Hevy...",
                             phase = "FETCHING"
                         )
                     )
@@ -593,10 +560,9 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     return@launch
                 }
 
-                // Batch workouts in chunks of 50 to avoid Apps Script HTTP payload/timeout limits
                 val chunks = allWorkouts.chunked(50)
                 var uploadedCount = 0
-                var lastResult: WebhookResult? = null
+                var lastResult: SyncResult? = null
 
                 for ((idx, chunk) in chunks.withIndex()) {
                     val chunkProgress = 0.5f + ((idx + 1).toFloat() / chunks.size.toFloat()) * 0.5f
@@ -604,7 +570,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                         it.copy(
                             bulkExportState = it.bulkExportState.copy(
                                 percentage = chunkProgress,
-                                statusMessage = "Uploading chunk ${idx + 1} of ${chunks.size} (${chunk.size} workouts)...",
+                                statusMessage = "Exporting chunk ${idx + 1} of ${chunks.size} (${chunk.size} workouts)...",
                                 phase = "UPLOADING"
                             )
                         )
@@ -617,20 +583,23 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                         workouts = chunk
                     )
 
-                    lastResult = webhookClient.postWorkoutExport(
-                        webhookUrl = settings.webhookUrl,
+                    val direct = driveClient.syncWorkoutsDirectly(
+                        accessToken = settings.googleOAuthAccessToken.ifBlank { null },
                         payload = payload,
                         folderPath = folderPath,
                         targetSubfolder = subfolder,
                         fileName = defaultFileName,
-                        format = settings.exportFormat,
                         writeMode = WriteMode.APPEND,
-                        archiveMaxDays = settings.archiveMaxDays,
-                        isBulkExport = true
+                        archiveMaxDays = settings.archiveMaxDays
+                    )
+                    lastResult = SyncResult(
+                        isSuccess = direct.isSuccess,
+                        message = direct.message,
+                        durationMs = direct.durationMs
                     )
 
                     uploadedCount += chunk.size
-                    kotlinx.coroutines.delay(400L)
+                    kotlinx.coroutines.delay(200L)
                 }
 
                 val finalSuccess = lastResult?.isSuccess == true
@@ -641,13 +610,10 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                         timestamp = System.currentTimeMillis(),
                         formattedDate = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
                         status = ExportStatus.SUCCESS,
-                        format = settings.exportFormat,
                         writeMode = WriteMode.APPEND,
                         folderPath = folderPath,
                         recordsCount = uploadedCount,
-                        httpStatusCode = lastResult?.httpCode,
-                        message = "Bulk export completed: $uploadedCount workouts exported (180-day active window + yearly archives).",
-                        payloadPreviewJson = "",
+                        message = "Bulk export completed: $uploadedCount workouts exported to Google Drive.",
                         payloadPreviewCsv = "",
                         isManualTrigger = true,
                         sourceApp = "Hevy"
@@ -667,14 +633,13 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                             percentage = 1f,
                             isCompleted = true,
                             recordsExported = uploadedCount,
-                            statusMessage = if (finalSuccess) "Bulk export complete! $uploadedCount workouts processed." else "Bulk export finished: ${lastResult?.message}"
+                            statusMessage = if (finalSuccess) "Bulk export complete! $uploadedCount workouts saved." else "Bulk export finished: ${lastResult?.message}"
                         ),
                         lastExportResult = lastResult
                     )
                 }
 
             } else {
-                // Health Connect Bulk History Export
                 val isAvailable = healthManager.checkAvailability() == HealthConnectAvailability.AVAILABLE
                 val hasPerms = healthManager.hasAllPermissions()
 
@@ -723,10 +688,9 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     }
                 }
 
-                // Batch records into chunks of 60 days to prevent Apps Script timeouts
                 val chunks = records.chunked(60)
                 var uploadedCount = 0
-                var lastResult: WebhookResult? = null
+                var lastResult: SyncResult? = null
 
                 for ((idx, chunk) in chunks.withIndex()) {
                     val uploadProgress = 0.6f + ((idx + 1).toFloat() / chunks.size.toFloat()) * 0.4f
@@ -734,7 +698,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                         it.copy(
                             bulkExportState = it.bulkExportState.copy(
                                 percentage = uploadProgress,
-                                statusMessage = "Uploading chunk ${idx + 1} of ${chunks.size} (${chunk.size} records)...",
+                                statusMessage = "Exporting chunk ${idx + 1} of ${chunks.size} (${chunk.size} records)...",
                                 phase = "UPLOADING"
                             )
                         )
@@ -748,20 +712,23 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                         dailyRecords = chunk
                     )
 
-                    lastResult = webhookClient.postExport(
-                        webhookUrl = settings.webhookUrl,
+                    val direct = driveClient.syncBiometricsDirectly(
+                        accessToken = settings.googleOAuthAccessToken.ifBlank { null },
                         payload = payload,
                         folderPath = folderPath,
                         targetSubfolder = subfolder,
                         fileName = defaultFileName,
-                        format = settings.exportFormat,
                         writeMode = WriteMode.APPEND,
-                        archiveMaxDays = settings.archiveMaxDays,
-                        isBulkExport = true
+                        archiveMaxDays = settings.archiveMaxDays
+                    )
+                    lastResult = SyncResult(
+                        isSuccess = direct.isSuccess,
+                        message = direct.message,
+                        durationMs = direct.durationMs
                     )
 
                     uploadedCount += chunk.size
-                    kotlinx.coroutines.delay(400L)
+                    kotlinx.coroutines.delay(200L)
                 }
 
                 val finalSuccess = lastResult?.isSuccess == true
@@ -772,13 +739,10 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                         timestamp = System.currentTimeMillis(),
                         formattedDate = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
                         status = ExportStatus.SUCCESS,
-                        format = settings.exportFormat,
                         writeMode = WriteMode.APPEND,
                         folderPath = folderPath,
                         recordsCount = uploadedCount,
-                        httpStatusCode = lastResult?.httpCode,
-                        message = "Bulk export completed: $uploadedCount daily records exported (180-day active window + yearly archives).",
-                        payloadPreviewJson = "",
+                        message = "Bulk export completed: $uploadedCount records exported to Google Drive.",
                         payloadPreviewCsv = "",
                         isManualTrigger = true,
                         sourceApp = "HealthConnect"
@@ -798,7 +762,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                             percentage = 1f,
                             isCompleted = true,
                             recordsExported = uploadedCount,
-                            statusMessage = if (finalSuccess) "Bulk export complete! $uploadedCount records processed across active and archive files." else "Export note: ${lastResult?.message}"
+                            statusMessage = if (finalSuccess) "Bulk export complete! $uploadedCount records saved." else "Export note: ${lastResult?.message}"
                         ),
                         lastExportResult = lastResult
                     )
@@ -817,3 +781,4 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
         prefs.recordInitialBulkExportCompleted()
     }
 }
+

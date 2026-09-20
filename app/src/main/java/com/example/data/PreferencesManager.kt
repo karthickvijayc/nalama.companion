@@ -2,7 +2,6 @@ package com.example.data
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.example.model.ExportFormat
 import com.example.model.SyncSourceApp
 import com.example.model.TargetFolder
 import com.example.model.WriteMode
@@ -12,14 +11,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.time.ZoneId
 
 data class AppSettings(
-    val webhookUrl: String = "",
     val sourceApp: SyncSourceApp = SyncSourceApp.HEALTH_CONNECT,
     val hevyApiKey: String = "",
     val targetFolder: TargetFolder = TargetFolder.HEALTH_DATA,
     val customFolderPath: String = "nalama.family/imports/health_data",
-    val exportFormat: ExportFormat = ExportFormat.CSV, // Default to CSV as requested
-    val writeMode: WriteMode = WriteMode.APPEND,       // Default to Append as requested
-    val syncIntervalMinutes: Int = 15,                 // Default to 15 mins as requested
+    val writeMode: WriteMode = WriteMode.APPEND,       // Default to Update Daily Record
+    val syncIntervalMinutes: Int = 15,                 // Default to 15 mins
     val autoSyncEnabled: Boolean = true,
     val timezoneId: String = "Asia/Kolkata",            // Matching schema timezone
     val demoModeEnabled: Boolean = false,              // Allows immediate testing in emulator
@@ -32,7 +29,8 @@ data class AppSettings(
     val selectedLanguage: String = "தமிழ் (Tamil)",
     val hasCompletedOnboarding: Boolean = false,
     val hasCompletedInitialBulkExport: Boolean = false,
-    val archiveMaxDays: Int = 180                      // Active file retains max 180 days, older moved to [file]_YYYY
+    val archiveMaxDays: Int = 180,                      // Active file retains max 180 days, older moved to [file]_YYYY
+    val googleOAuthAccessToken: String = ""
 )
 
 class PreferencesManager(context: Context) {
@@ -44,7 +42,6 @@ class PreferencesManager(context: Context) {
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
 
     private fun loadSettings(): AppSettings {
-        val formatStr = prefs.getString(KEY_FORMAT, ExportFormat.CSV.name) ?: ExportFormat.CSV.name
         val writeModeStr = prefs.getString(KEY_WRITE_MODE, WriteMode.APPEND.name) ?: WriteMode.APPEND.name
         val targetFolderStr = prefs.getString(KEY_TARGET_FOLDER, TargetFolder.HEALTH_DATA.name) ?: TargetFolder.HEALTH_DATA.name
         val sourceAppStr = prefs.getString(KEY_SOURCE_APP, SyncSourceApp.HEALTH_CONNECT.name) ?: SyncSourceApp.HEALTH_CONNECT.name
@@ -58,12 +55,10 @@ class PreferencesManager(context: Context) {
         val defaultFolder = loadedSourceApp.defaultTargetFolder
 
         return AppSettings(
-            webhookUrl = prefs.getString(KEY_WEBHOOK_URL, "") ?: "",
             sourceApp = loadedSourceApp,
             hevyApiKey = prefs.getString(KEY_HEVY_API_KEY, "") ?: "",
             targetFolder = try { TargetFolder.valueOf(targetFolderStr) } catch (_: Exception) { defaultFolder },
             customFolderPath = prefs.getString(KEY_CUSTOM_FOLDER_PATH, defaultFolder.folderPath) ?: defaultFolder.folderPath,
-            exportFormat = try { ExportFormat.valueOf(formatStr) } catch (_: Exception) { ExportFormat.CSV },
             writeMode = try { WriteMode.valueOf(writeModeStr) } catch (_: Exception) { WriteMode.APPEND },
             syncIntervalMinutes = prefs.getInt(KEY_SYNC_INTERVAL, 15),
             autoSyncEnabled = prefs.getBoolean(KEY_AUTO_SYNC, true),
@@ -78,8 +73,14 @@ class PreferencesManager(context: Context) {
             selectedLanguage = prefs.getString(KEY_SELECTED_LANGUAGE, "தமிழ் (Tamil)") ?: "தமிழ் (Tamil)",
             hasCompletedOnboarding = prefs.getBoolean(KEY_HAS_COMPLETED_ONBOARDING, false),
             hasCompletedInitialBulkExport = prefs.getBoolean(KEY_HAS_COMPLETED_INITIAL_BULK_EXPORT, false),
-            archiveMaxDays = prefs.getInt(KEY_ARCHIVE_MAX_DAYS, 180)
+            archiveMaxDays = prefs.getInt(KEY_ARCHIVE_MAX_DAYS, 180),
+            googleOAuthAccessToken = prefs.getString(KEY_GOOGLE_OAUTH_ACCESS_TOKEN, "") ?: ""
         )
+    }
+
+    fun updateGoogleOAuthAccessToken(token: String) {
+        prefs.edit().putString(KEY_GOOGLE_OAUTH_ACCESS_TOKEN, token.trim()).apply()
+        _settings.value = _settings.value.copy(googleOAuthAccessToken = token.trim())
     }
 
     fun updateSourceApp(sourceApp: SyncSourceApp) {
@@ -99,16 +100,6 @@ class PreferencesManager(context: Context) {
     fun updateHevyApiKey(key: String) {
         prefs.edit().putString(KEY_HEVY_API_KEY, key.trim()).apply()
         _settings.value = _settings.value.copy(hevyApiKey = key.trim())
-    }
-
-    fun updateWebhookUrl(url: String) {
-        prefs.edit().putString(KEY_WEBHOOK_URL, url.trim()).apply()
-        _settings.value = _settings.value.copy(webhookUrl = url.trim())
-    }
-
-    fun updateExportFormat(format: ExportFormat) {
-        prefs.edit().putString(KEY_FORMAT, format.name).apply()
-        _settings.value = _settings.value.copy(exportFormat = format)
     }
 
     fun updateWriteMode(mode: WriteMode) {
@@ -219,10 +210,8 @@ class PreferencesManager(context: Context) {
     }
 
     companion object {
-        private const val KEY_WEBHOOK_URL = "key_webhook_url"
         private const val KEY_SOURCE_APP = "key_source_app"
         private const val KEY_HEVY_API_KEY = "key_hevy_api_key"
-        private const val KEY_FORMAT = "key_format"
         private const val KEY_WRITE_MODE = "key_write_mode"
         private const val KEY_TARGET_FOLDER = "key_target_folder"
         private const val KEY_CUSTOM_FOLDER_PATH = "key_custom_folder_path"
@@ -240,5 +229,6 @@ class PreferencesManager(context: Context) {
         private const val KEY_HAS_COMPLETED_ONBOARDING = "key_has_completed_onboarding"
         private const val KEY_HAS_COMPLETED_INITIAL_BULK_EXPORT = "key_has_completed_initial_bulk_export"
         private const val KEY_ARCHIVE_MAX_DAYS = "key_archive_max_days"
+        private const val KEY_GOOGLE_OAUTH_ACCESS_TOKEN = "key_google_oauth_access_token"
     }
 }

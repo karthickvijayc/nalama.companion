@@ -1,9 +1,6 @@
 package com.example.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,12 +11,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.model.ExportFormat
 import com.example.model.SyncSourceApp
 import com.example.model.TargetFolder
 import com.example.model.WriteMode
@@ -27,8 +22,6 @@ import com.example.model.WriteMode
 @Composable
 fun ExportControlsCard(
     sourceApp: SyncSourceApp,
-    selectedFormat: ExportFormat,
-    onFormatSelected: (ExportFormat) -> Unit,
     selectedWriteMode: WriteMode,
     onWriteModeSelected: (WriteMode) -> Unit,
     selectedFolder: TargetFolder,
@@ -82,7 +75,7 @@ fun ExportControlsCard(
                     }
                     Column {
                         Text(
-                            text = "Export Options & Trigger",
+                            text = "Sync Controls",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -96,44 +89,10 @@ fun ExportControlsCard(
                 }
             }
 
-            // 1. Export Format (CSV, JSON, Both)
+            // Write Mode (Update vs Overwrite)
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = "File Format (Default: CSV)",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ExportFormat.values().forEach { fmt ->
-                        val isSelected = selectedFormat == fmt
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { onFormatSelected(fmt) },
-                            label = {
-                                Text(
-                                    text = fmt.displayName,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                )
-                            },
-                            leadingIcon = if (isSelected) {
-                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                            } else null,
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("format_chip_${fmt.name.lowercase()}")
-                        )
-                    }
-                }
-            }
-
-            // 2. Write Mode (In-place update vs Overwrite)
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = "Write Mode",
+                    text = "Save Mode",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -198,7 +157,7 @@ fun ExportControlsCard(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = if (autoSyncEnabled) "Runs automatically in background for ${sourceApp.displayName}" else "Only manual exports enabled",
+                                text = if (autoSyncEnabled) "Runs automatically in background" else "Only manual sync enabled",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 11.sp
@@ -233,7 +192,7 @@ fun ExportControlsCard(
                             strokeWidth = 2.dp
                         )
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text("Syncing ${sourceApp.displayName} to Drive...", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text("Syncing to Google Drive...", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     } else {
                         Icon(
                             imageVector = Icons.Default.CloudUpload,
@@ -242,7 +201,7 @@ fun ExportControlsCard(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Sync ${sourceApp.displayName} to Drive / Sheets",
+                            text = "Sync Now to Google Drive",
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         )
@@ -266,7 +225,7 @@ fun ExportControlsCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Bulk Export All History",
+                        text = "Sync Full History",
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 13.sp
                     )

@@ -8,15 +8,13 @@ import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.HealthSyncApplication
+import com.example.drive.GoogleDriveDirectClient
 import com.example.health.HealthConnectAvailability
 import com.example.health.HealthConnectManager
 import com.example.health.HevySyncManager
 import com.example.model.*
-import com.example.network.GoogleAppsScriptWebhookClient
 import com.example.util.CsvConverter
-import com.example.util.JsonConverter
 import com.example.util.WorkoutCsvConverter
-import com.example.util.WorkoutJsonConverter
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -43,7 +41,7 @@ class HealthSyncWorker(
         val folderPath = settings.customFolderPath.ifBlank { settings.targetFolder.folderPath }
         val subfolder = settings.targetFolder.subfolder
         val defaultFileName = settings.targetFolder.defaultFileName
-        val webhookClient = GoogleAppsScriptWebhookClient()
+        val driveClient = GoogleDriveDirectClient(context)
 
         if (settings.sourceApp == SyncSourceApp.HEVY) {
             val hevyManager = HevySyncManager()
@@ -60,31 +58,27 @@ class HealthSyncWorker(
                 )
             }
 
-            val result = webhookClient.postWorkoutExport(
-                webhookUrl = settings.webhookUrl,
+            val directResult = driveClient.syncWorkoutsDirectly(
+                accessToken = settings.googleOAuthAccessToken.ifBlank { null },
                 payload = workoutsPayload,
                 folderPath = folderPath,
                 targetSubfolder = subfolder,
                 fileName = defaultFileName,
-                format = settings.exportFormat,
-                writeMode = settings.writeMode
+                writeMode = settings.writeMode,
+                archiveMaxDays = settings.archiveMaxDays
             )
 
-            val jsonPreview = WorkoutJsonConverter.toJsonString(workoutsPayload, 2)
             val csvPreview = WorkoutCsvConverter.toCsvString(workoutsPayload.workouts, settings.writeMode == WriteMode.OVERWRITE)
 
             val historyItem = ExportHistoryItem(
                 id = UUID.randomUUID().toString(),
                 timestamp = startTime,
                 formattedDate = formattedNow,
-                status = if (result.isSuccess) ExportStatus.SUCCESS else ExportStatus.FAILED,
-                format = settings.exportFormat,
+                status = if (directResult.isSuccess) ExportStatus.SUCCESS else ExportStatus.FAILED,
                 writeMode = settings.writeMode,
                 folderPath = folderPath,
                 recordsCount = workoutsPayload.workouts.size,
-                httpStatusCode = result.httpCode,
-                message = result.message,
-                payloadPreviewJson = jsonPreview,
+                message = directResult.message,
                 payloadPreviewCsv = csvPreview,
                 isManualTrigger = isManual,
                 sourceApp = "Hevy"
@@ -93,15 +87,15 @@ class HealthSyncWorker(
             historyStore.addHistoryItem(historyItem)
             prefs.recordSyncOutcome(
                 timestamp = startTime,
-                status = if (result.isSuccess) "Exported ${workoutsPayload.workouts.size} Hevy workout(s) to $folderPath" else result.message,
-                isSuccess = result.isSuccess
+                status = if (directResult.isSuccess) "Exported ${workoutsPayload.workouts.size} Hevy workout(s) to $folderPath" else directResult.message,
+                isSuccess = directResult.isSuccess
             )
 
-            if (result.isSuccess) {
-                showNotification("Workout Sync Succeeded", "Exported ${workoutsPayload.workouts.size} workout(s) to Google Drive.")
+            if (directResult.isSuccess) {
+                showNotification("Workout Sync Succeeded", "Synced ${workoutsPayload.workouts.size} workout(s) to Google Drive.")
                 return Result.success()
             } else {
-                showNotification("Workout Sync Notice", result.message)
+                showNotification("Workout Sync Notice", directResult.message)
                 return Result.retry()
             }
         } else {
@@ -109,14 +103,14 @@ class HealthSyncWorker(
             val today = now.toLocalDate()
 
             val dailyRecords: List<DailyRecord> = if (settings.demoModeEnabled) {
-                listOf(healthManager.generateSampleRecord(today, "Demo Mode (Simulation)"))
+                listOf(healthManager.generateSampleRecord(today, "Demo Mode"))
             } else {
                 val availability = healthManager.checkAvailability()
                 if (availability == HealthConnectAvailability.AVAILABLE && healthManager.hasAllPermissions()) {
                     val record = healthManager.readDailyRecord(today, zoneId)
                     listOf(record)
                 } else {
-                    listOf(healthManager.generateSampleRecord(today, "HealthConnect (Default Metrics)"))
+                    listOf(healthManager.generateSampleRecord(today, "HealthConnect"))
                 }
             }
 
@@ -128,31 +122,27 @@ class HealthSyncWorker(
                 dailyRecords = dailyRecords
             )
 
-            val result = webhookClient.postExport(
-                webhookUrl = settings.webhookUrl,
+            val directResult = driveClient.syncBiometricsDirectly(
+                accessToken = settings.googleOAuthAccessToken.ifBlank { null },
                 payload = exportPayload,
                 folderPath = folderPath,
                 targetSubfolder = subfolder,
                 fileName = defaultFileName,
-                format = settings.exportFormat,
-                writeMode = settings.writeMode
+                writeMode = settings.writeMode,
+                archiveMaxDays = settings.archiveMaxDays
             )
 
-            val jsonPreview = JsonConverter.toJsonString(exportPayload, 2)
             val csvPreview = CsvConverter.toCsvString(exportPayload.dailyRecords, settings.writeMode == WriteMode.OVERWRITE)
 
             val historyItem = ExportHistoryItem(
                 id = UUID.randomUUID().toString(),
                 timestamp = startTime,
                 formattedDate = formattedNow,
-                status = if (result.isSuccess) ExportStatus.SUCCESS else ExportStatus.FAILED,
-                format = settings.exportFormat,
+                status = if (directResult.isSuccess) ExportStatus.SUCCESS else ExportStatus.FAILED,
                 writeMode = settings.writeMode,
                 folderPath = folderPath,
                 recordsCount = dailyRecords.size,
-                httpStatusCode = result.httpCode,
-                message = result.message,
-                payloadPreviewJson = jsonPreview,
+                message = directResult.message,
                 payloadPreviewCsv = csvPreview,
                 isManualTrigger = isManual,
                 sourceApp = "HealthConnect"
@@ -161,15 +151,15 @@ class HealthSyncWorker(
             historyStore.addHistoryItem(historyItem)
             prefs.recordSyncOutcome(
                 timestamp = startTime,
-                status = if (result.isSuccess) "Exported ${dailyRecords.size} health record(s) to $folderPath" else result.message,
-                isSuccess = result.isSuccess
+                status = if (directResult.isSuccess) "Exported ${dailyRecords.size} health record(s) to $folderPath" else directResult.message,
+                isSuccess = directResult.isSuccess
             )
 
-            if (result.isSuccess) {
-                showNotification("Health Sync Succeeded", "Exported ${dailyRecords.size} daily record(s) to Google Drive.")
+            if (directResult.isSuccess) {
+                showNotification("Health Sync Succeeded", "Synced ${dailyRecords.size} record(s) to Google Drive.")
                 return Result.success()
             } else {
-                showNotification("Health Sync Notice", result.message)
+                showNotification("Health Sync Notice", directResult.message)
                 return Result.retry()
             }
         }
@@ -186,7 +176,7 @@ class HealthSyncWorker(
                     "Health & Gym Sync",
                     NotificationManager.IMPORTANCE_LOW
                 ).apply {
-                    description = "Notifications for Health & Hevy exports to Google Sheets/Drive"
+                    description = "Notifications for exports to Google Drive"
                 }
                 notificationManager.createNotificationChannel(channel)
             }
@@ -203,3 +193,4 @@ class HealthSyncWorker(
         } catch (_: Exception) {}
     }
 }
+

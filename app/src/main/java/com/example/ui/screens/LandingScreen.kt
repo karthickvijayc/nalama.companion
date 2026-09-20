@@ -416,7 +416,7 @@ fun LandingScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "This Android app functions strictly as a sensor & workout companion for the parent Nalama platform (nalama.family). It writes transparent JSON/CSV partitions directly to your personal Google Drive (/nalama.family) or Sheets, with zero intermediary databases.",
+                                text = "This Android app functions strictly as a sensor & workout companion for the parent Nalama platform (nalama.family). It writes clean CSV files directly to your personal Google Drive, with zero intermediary databases.",
                                 fontSize = 13.sp,
                                 color = Color(0xFF475569),
                                 lineHeight = 19.sp
@@ -578,7 +578,7 @@ fun LandingScreen(
                             color = Color(0xFF475569)
                         )
                         Text(
-                            text = "3. Complete Transparency: Data is stored as readable JSON / CSV partitions that you can inspect, delete, or export anytime.",
+                            text = "3. Complete Transparency: Data is stored as readable CSV files that you can inspect, delete, or export anytime.",
                             fontSize = 12.5.sp,
                             color = Color(0xFF475569)
                         )

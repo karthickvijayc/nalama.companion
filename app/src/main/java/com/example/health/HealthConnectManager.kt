@@ -376,8 +376,8 @@ class HealthConnectManager(private val context: Context) {
     }
 
     /**
-     * Generates standard sample record strictly matching the requested schema.
-     * Used exclusively in Demo Simulation Mode for testing webhooks and in emulator environments.
+     * Generates standard sample record strictly matching the schema.
+     * Used exclusively in Demo Simulation Mode and in emulator environments.
      */
     fun generateSampleRecord(date: LocalDate, customSource: String? = null): DailyRecord {
         val sources = listOf("com.sec.android.app.shealth", "com.google.android.apps.fitness")

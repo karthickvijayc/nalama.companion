@@ -33,7 +33,6 @@ import com.example.ui.HealthSyncViewModel
 import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.HistoryScreen
 import com.example.ui.screens.LandingScreen
-import com.example.ui.screens.PayloadPreviewScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.SplashScreen
 import com.example.ui.theme.HealthConnectSyncTheme
@@ -213,7 +212,6 @@ class MainActivity : ComponentActivity() {
                                     uiState = uiState,
                                     onRequestHealthPermissions = requestPermissions,
                                     onSelectSourceApp = { viewModel.updateSourceApp(it) },
-                                    onFormatSelected = { viewModel.updateExportFormat(it) },
                                     onWriteModeSelected = { viewModel.updateWriteMode(it) },
                                     onFolderSelected = { viewModel.updateTargetFolder(it) },
                                     onExportNow = { viewModel.exportNow() },
@@ -234,8 +232,7 @@ class MainActivity : ComponentActivity() {
                                     uiState = uiState,
                                     onUpdateSourceApp = { viewModel.updateSourceApp(it) },
                                     onUpdateHevyApiKey = { viewModel.updateHevyApiKey(it) },
-                                    onUpdateWebhookUrl = { viewModel.updateWebhookUrl(it) },
-                                    onTestWebhook = { viewModel.testWebhook(it) },
+                                    onTestDriveConnection = { viewModel.testDriveConnection() },
                                     onDismissTestResult = { viewModel.dismissTestResult() },
                                     onUpdateSyncInterval = { viewModel.updateSyncInterval(it) },
                                     onUpdateAutoSync = { viewModel.updateAutoSync(it) },

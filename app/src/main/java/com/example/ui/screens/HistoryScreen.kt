@@ -248,7 +248,7 @@ private fun HistoryItemCard(
                     )
                     Text("•", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
-                        text = "${item.format.name} (${item.writeMode.name})",
+                        text = "CSV (${item.writeMode.name})",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 10.sp
@@ -259,14 +259,6 @@ private fun HistoryItemCard(
                         style = MaterialTheme.typography.labelSmall,
                         fontSize = 10.sp
                     )
-                    if (item.httpStatusCode != null) {
-                        Text("•", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(
-                            text = "HTTP ${item.httpStatusCode}",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontSize = 10.sp
-                        )
-                    }
                 }
             }
 
