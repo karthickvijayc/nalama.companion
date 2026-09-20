@@ -115,7 +115,7 @@ class MainActivity : ComponentActivity() {
                                                     modifier = Modifier.padding(2.dp)
                                                 ) {
                                                     Image(
-                                                        painter = painterResource(id = R.drawable.img_nalama_logo),
+                                                        painter = painterResource(id = R.drawable.logo_nalama_hdc_transparent),
                                                         contentDescription = "Nalama Health Data Companion Logo",
                                                         modifier = Modifier.size(32.dp)
                                                     )
@@ -149,37 +149,6 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     actions = {
-                                        // Account Status Chip in AppBar
-                                        if (uiState.settings.isGoogleConnected) {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                                                modifier = Modifier
-                                                    .padding(end = 4.dp)
-                                                    .clickable { viewModel.navigateTo(AppScreen.LANDING) }
-                                                    .testTag("app_bar_account_chip")
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                                ) {
-                                                    Icon(
-                                                        Icons.Outlined.AccountCircle,
-                                                        contentDescription = "Account",
-                                                        tint = MaterialTheme.colorScheme.primary,
-                                                        modifier = Modifier.size(15.dp)
-                                                    )
-                                                    Text(
-                                                        text = uiState.settings.connectedDisplayName.ifEmpty { "Connected" }.take(10),
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                }
-                                            }
-                                        }
                                         IconButton(
                                             onClick = { viewModel.refreshActiveData() },
                                             modifier = Modifier.testTag("app_bar_refresh_button")

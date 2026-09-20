@@ -123,24 +123,29 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
             val zoneId = try { ZoneId.of(settings.timezoneId) } catch (_: Exception) { ZoneId.systemDefault() }
             val today = LocalDate.now(zoneId)
 
-            val record: DailyRecord = if (settings.demoModeEnabled) {
-                healthManager.generateSampleRecord(today, "Demo Mode")
-            } else if (healthManager.checkAvailability() == HealthConnectAvailability.AVAILABLE && healthManager.hasAllPermissions()) {
-                healthManager.readDailyRecord(today, zoneId)
-            } else {
-                healthManager.generateSampleRecord(today, "Sample Health Connect Data")
+            val isAvailable = healthManager.checkAvailability() == HealthConnectAvailability.AVAILABLE
+            val hasPerms = healthManager.hasAllPermissions()
+
+            val record: DailyRecord? = when {
+                settings.demoModeEnabled -> healthManager.generateSampleRecord(today, "Demo Mode")
+                isAvailable && hasPerms -> healthManager.readDailyRecord(today, zoneId)
+                else -> null
             }
 
-            val payload = BiometricsExportPayload(
-                exportVersion = "1.0",
-                sourceApp = "HealthConnect",
-                timezone = settings.timezoneId,
-                exportedAt = ZonedDateTime.now().format(DateTimeFormatter.ISO_INSTANT),
-                dailyRecords = listOf(record)
-            )
+            val jsonPreview = record?.let {
+                val payload = BiometricsExportPayload(
+                    exportVersion = "1.0",
+                    sourceApp = "HealthConnect",
+                    timezone = settings.timezoneId,
+                    exportedAt = ZonedDateTime.now().format(DateTimeFormatter.ISO_INSTANT),
+                    dailyRecords = listOf(it)
+                )
+                JsonConverter.toJsonString(payload, 2)
+            } ?: "{\n  \"status\": \"Permission not granted or setup not complete\"\n}"
 
-            val jsonPreview = JsonConverter.toJsonString(payload, 2)
-            val csvPreview = CsvConverter.toCsvString(listOf(record), settings.writeMode == WriteMode.OVERWRITE)
+            val csvPreview = record?.let {
+                CsvConverter.toCsvString(listOf(it), settings.writeMode == WriteMode.OVERWRITE)
+            } ?: "Permission not granted or setup not complete"
 
             _uiState.update {
                 it.copy(
@@ -155,19 +160,28 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
     fun refreshHevyWorkouts() {
         viewModelScope.launch {
             val settings = prefs.settings.value
+            if (settings.hevyApiKey.isBlank() && !settings.demoModeEnabled) {
+                _uiState.update {
+                    it.copy(
+                        workoutsPayload = null,
+                        previewJson = "{\n  \"status\": \"Setup not complete: Hevy API key required\"\n}",
+                        previewCsv = "Setup not complete: Hevy API key required"
+                    )
+                }
+                return@launch
+            }
+
             val result = hevyManager.fetchWorkouts(
                 apiKey = settings.hevyApiKey,
                 isDemoMode = settings.demoModeEnabled
             )
 
-            val workoutsPayload = result.getOrElse {
-                WorkoutsExportPayload(
-                    exportVersion = "1.0",
-                    sourceApp = "Hevy",
-                    syncedAt = ZonedDateTime.now().format(DateTimeFormatter.ISO_INSTANT),
-                    workouts = hevyManager.getSampleWorkouts()
-                )
-            }
+            val workoutsPayload = result.getOrNull() ?: WorkoutsExportPayload(
+                exportVersion = "1.0",
+                sourceApp = "Hevy",
+                syncedAt = ZonedDateTime.now().format(DateTimeFormatter.ISO_INSTANT),
+                workouts = emptyList()
+            )
 
             val jsonPreview = WorkoutJsonConverter.toJsonString(workoutsPayload, 2)
             val csvPreview = WorkoutCsvConverter.toCsvString(workoutsPayload.workouts, settings.writeMode == WriteMode.OVERWRITE)
@@ -196,6 +210,17 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
 
             if (settings.sourceApp == SyncSourceApp.HEVY) {
                 // Hevy Workouts Export
+                if (settings.hevyApiKey.isBlank() && !settings.demoModeEnabled) {
+                    val errorResult = WebhookResult(
+                        isSuccess = false,
+                        httpCode = 400,
+                        message = "Setup not complete: Please configure your Hevy API key in Settings.",
+                        durationMs = 0
+                    )
+                    _uiState.update { it.copy(isExporting = false, lastExportResult = errorResult) }
+                    return@launch
+                }
+
                 val fetchResult = hevyManager.fetchWorkouts(
                     apiKey = settings.hevyApiKey,
                     isDemoMode = settings.demoModeEnabled
@@ -205,7 +230,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                         exportVersion = "1.0",
                         sourceApp = "Hevy",
                         syncedAt = ZonedDateTime.now().format(DateTimeFormatter.ISO_INSTANT),
-                        workouts = hevyManager.getSampleWorkouts()
+                        workouts = emptyList()
                     )
                 }
 
@@ -258,13 +283,30 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                 }
             } else {
                 // Health Connect Biometrics Export
+                val isAvailable = healthManager.checkAvailability() == HealthConnectAvailability.AVAILABLE
+                val hasPerms = healthManager.hasAllPermissions()
+
+                if (!settings.demoModeEnabled && (!isAvailable || !hasPerms)) {
+                    val msg = if (!isAvailable) {
+                        "Setup not complete: Health Connect is not available on this device."
+                    } else {
+                        "Permission not granted: Health Connect permissions have not been granted."
+                    }
+                    val errorResult = WebhookResult(
+                        isSuccess = false,
+                        httpCode = 400,
+                        message = msg,
+                        durationMs = 0
+                    )
+                    _uiState.update { it.copy(isExporting = false, lastExportResult = errorResult) }
+                    return@launch
+                }
+
                 val today = now.toLocalDate()
                 val record: DailyRecord = if (settings.demoModeEnabled) {
                     healthManager.generateSampleRecord(today, "Demo Mode")
-                } else if (healthManager.checkAvailability() == HealthConnectAvailability.AVAILABLE && healthManager.hasAllPermissions()) {
-                    healthManager.readDailyRecord(today, zoneId)
                 } else {
-                    healthManager.generateSampleRecord(today, "HealthConnect")
+                    healthManager.readDailyRecord(today, zoneId)
                 }
 
                 val payload = BiometricsExportPayload(
@@ -485,6 +527,18 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
 
             if (settings.sourceApp == SyncSourceApp.HEVY) {
                 // Hevy Bulk History Export
+                if (settings.hevyApiKey.isBlank() && !settings.demoModeEnabled) {
+                    _uiState.update {
+                        it.copy(
+                            bulkExportState = it.bulkExportState.copy(
+                                isRunning = false,
+                                error = "Setup not complete: Please configure your Hevy API key in Settings."
+                            )
+                        )
+                    }
+                    return@launch
+                }
+
                 _uiState.update {
                     it.copy(
                         bulkExportState = it.bulkExportState.copy(
@@ -621,6 +675,23 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
 
             } else {
                 // Health Connect Bulk History Export
+                val isAvailable = healthManager.checkAvailability() == HealthConnectAvailability.AVAILABLE
+                val hasPerms = healthManager.hasAllPermissions()
+
+                if (!settings.demoModeEnabled && (!isAvailable || !hasPerms)) {
+                    val msg = if (!isAvailable) "Setup not complete: Health Connect is not available on this device."
+                              else "Permission not granted: Please grant Health Connect permissions before bulk export."
+                    _uiState.update {
+                        it.copy(
+                            bulkExportState = it.bulkExportState.copy(
+                                isRunning = false,
+                                error = msg
+                            )
+                        )
+                    }
+                    return@launch
+                }
+
                 val today = now.toLocalDate()
                 val startDate = today.minusDays(historyDays.toLong())
 

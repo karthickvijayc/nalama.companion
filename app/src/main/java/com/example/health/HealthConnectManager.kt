@@ -100,7 +100,7 @@ class HealthConnectManager(private val context: Context) {
      */
     suspend fun readDailyRecord(date: LocalDate, zoneId: ZoneId): DailyRecord {
         val client = healthConnectClient
-            ?: return generateSampleRecord(date, "Health Connect Client Unavailable")
+            ?: return createEmptyDailyRecord(date)
 
         val startOfDay = date.atStartOfDay(zoneId).toInstant()
         val endOfDay = date.plusDays(1).atStartOfDay(zoneId).toInstant()
@@ -303,14 +303,7 @@ class HealthConnectManager(private val context: Context) {
             }
         } catch (_: Exception) {}
 
-        // If no data was present in Health Connect yet (e.g. fresh installation or emulator),
-        // we check if all fields are 0/null and fallback to realistic simulated records
-        val hasAnyData = totalSteps > 0 || totalSleepMinutes > 0 || totalDistanceMeters > 0 || weightKg != null
-        if (!hasAnyData) {
-            return generateSampleRecord(date, "HealthConnect (Simulated/Empty Device)")
-        }
-
-        val sourcesList = if (sourcesSet.isEmpty()) listOf("com.google.android.apps.fitness") else sourcesSet.toList()
+        val sourcesList = sourcesSet.toList()
 
         return DailyRecord(
             date = date.format(DateTimeFormatter.ISO_LOCAL_DATE),
@@ -346,15 +339,48 @@ class HealthConnectManager(private val context: Context) {
     }
 
     /**
+     * Creates an empty DailyRecord for days where no biometrics have been logged yet.
+     */
+    fun createEmptyDailyRecord(date: LocalDate): DailyRecord {
+        return DailyRecord(
+            date = date.format(DateTimeFormatter.ISO_LOCAL_DATE),
+            sources = emptyList(),
+            activity = ActivityMetrics(
+                steps = 0L,
+                distanceMeters = 0.0,
+                totalCaloriesKcal = 0.0,
+                activeCaloriesKcal = 0.0,
+                activeDurationMinutes = 0L,
+                vo2MaxMlKgMin = null
+            ),
+            sleep = SleepMetrics(
+                totalSleepMinutes = 0L,
+                lightSleepMinutes = 0L,
+                deepSleepMinutes = 0L,
+                remSleepMinutes = 0L,
+                awakeMinutes = 0L,
+                sleepEfficiencyScore = 0
+            ),
+            vitals = VitalsMetrics(
+                restingHeartRateBpm = null,
+                heartRateVariabilityMs = null,
+                oxygenSaturationPct = null,
+                bloodPressureMmHg = null
+            ),
+            bodyMeasurements = BodyMeasurements(
+                weightKg = null,
+                bodyFatPct = null,
+                leanBodyMassKg = null
+            )
+        )
+    }
+
+    /**
      * Generates standard sample record strictly matching the requested schema.
-     * Perfect for testing webhooks and in emulator environments without real hardware sensors.
+     * Used exclusively in Demo Simulation Mode for testing webhooks and in emulator environments.
      */
     fun generateSampleRecord(date: LocalDate, customSource: String? = null): DailyRecord {
-        val sources = if (customSource != null) {
-            listOf("com.sec.android.app.shealth", "com.google.android.apps.fitness")
-        } else {
-            listOf("com.sec.android.app.shealth", "com.google.android.apps.fitness")
-        }
+        val sources = listOf("com.sec.android.app.shealth", "com.google.android.apps.fitness")
 
         return DailyRecord(
             date = date.format(DateTimeFormatter.ISO_LOCAL_DATE),
@@ -426,13 +452,13 @@ class HealthConnectManager(private val context: Context) {
                         if (attempts < 2) {
                             kotlinx.coroutines.delay(200L * attempts)
                         } else {
-                            dayRecord = generateSampleRecord(currentDate, "HealthConnect")
+                            dayRecord = createEmptyDailyRecord(currentDate)
                         }
                     }
                 }
-                dayRecord ?: generateSampleRecord(currentDate, "HealthConnect")
+                dayRecord ?: createEmptyDailyRecord(currentDate)
             } else {
-                generateSampleRecord(currentDate, "Sample History")
+                createEmptyDailyRecord(currentDate)
             }
 
             results.add(record)

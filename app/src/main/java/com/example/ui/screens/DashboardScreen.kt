@@ -50,9 +50,6 @@ fun DashboardScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Nalama Ecosystem Companion Banner
-        NalamaCompanionBanner()
-
         // First-Time Bulk History Export Banner
         if (!uiState.settings.hasCompletedInitialBulkExport) {
             InitialBulkExportBanner(
@@ -70,16 +67,17 @@ fun DashboardScreen(
             // Source Status
             val isHevy = uiState.settings.sourceApp == SyncSourceApp.HEVY
             val isHcOk = uiState.healthAvailability == HealthConnectAvailability.AVAILABLE && uiState.hasPermissions
+            val isHevyOk = uiState.settings.hevyApiKey.isNotBlank()
             StatusBadge(
                 modifier = Modifier.weight(1f),
                 label = if (isHevy) "Source: Hevy" else "Health Connect",
                 status = if (isHevy) {
-                    if (uiState.settings.hevyApiKey.isNotBlank()) "API Key Set" else "Ready (Sample)"
+                    if (isHevyOk) "API Key Set" else "Setup Needed"
                 } else {
                     if (uiState.settings.demoModeEnabled) "Demo Mode" else if (isHcOk) "Connected" else "Needs Access"
                 },
                 icon = if (isHevy) Icons.Default.FitnessCenter else (if (isHcOk) Icons.Default.CheckCircle else Icons.Default.Warning),
-                isGood = isHevy || isHcOk || uiState.settings.demoModeEnabled,
+                isGood = (isHevy && isHevyOk) || isHcOk || uiState.settings.demoModeEnabled,
                 onClick = {
                     if (!isHevy && !isHcOk && !uiState.settings.demoModeEnabled) {
                         onRequestHealthPermissions()
@@ -208,11 +206,18 @@ fun DashboardScreen(
         if (uiState.settings.sourceApp == SyncSourceApp.HEVY) {
             HevyWorkoutsCard(
                 payload = uiState.workoutsPayload,
+                isApiKeyConfigured = uiState.settings.hevyApiKey.isNotBlank(),
+                isDemoMode = uiState.settings.demoModeEnabled,
+                onOpenSettings = onOpenScheduleSettings,
                 onRefresh = onRefreshHealthData
             )
         } else {
             HealthMetricsCard(
                 record = uiState.todayRecord,
+                hasPermissions = uiState.hasPermissions,
+                isHealthAvailable = uiState.healthAvailability == HealthConnectAvailability.AVAILABLE,
+                isDemoMode = uiState.settings.demoModeEnabled,
+                onRequestPermissions = onRequestHealthPermissions,
                 onRefresh = onRefreshHealthData
             )
         }

@@ -11,7 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -22,6 +22,9 @@ import com.example.model.WorkoutsExportPayload
 @Composable
 fun HevyWorkoutsCard(
     payload: WorkoutsExportPayload?,
+    isApiKeyConfigured: Boolean,
+    isDemoMode: Boolean = false,
+    onOpenSettings: () -> Unit,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -81,75 +84,154 @@ fun HevyWorkoutsCard(
                 }
             }
 
-            val workouts = payload?.workouts ?: emptyList()
-
-            if (workouts.isEmpty()) {
+            if (!isDemoMode && !isApiKeyConfigured) {
+                // Setup not complete: Hevy API key missing
                 Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("hevy_setup_not_complete")
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text("No workout records available", fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "Tap refresh or provide your Hevy API key in settings.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Icon(
+                            imageVector = Icons.Default.VpnKey,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(32.dp)
                         )
+                        Text(
+                            text = "Setup not complete",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Hevy API key is not configured. Please enter your API key in Settings to sync workout records.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Button(
+                            onClick = onOpenSettings,
+                            modifier = Modifier.testTag("open_settings_for_hevy_button")
+                        ) {
+                            Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Open Settings")
+                        }
                     }
                 }
             } else {
-                // Summary Stats Row
-                val totalVolume = workouts.sumOf { it.totalVolumeKg }
-                val totalSets = workouts.sumOf { it.totalSets }
-                val totalDuration = workouts.sumOf { it.durationMinutes }
+                val workouts = payload?.workouts ?: emptyList()
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    WorkoutStatTile(
-                        modifier = Modifier.weight(1f),
-                        label = "Workouts",
-                        value = "${workouts.size}",
-                        icon = Icons.Default.EventNote
-                    )
-                    WorkoutStatTile(
-                        modifier = Modifier.weight(1f),
-                        label = "Volume",
-                        value = "${totalVolume} kg",
-                        icon = Icons.Default.FitnessCenter
-                    )
-                    WorkoutStatTile(
-                        modifier = Modifier.weight(1f),
-                        label = "Total Sets",
-                        value = "$totalSets",
-                        icon = Icons.Default.Repeat
-                    )
-                    WorkoutStatTile(
-                        modifier = Modifier.weight(1f),
-                        label = "Duration",
-                        value = "${totalDuration}m",
-                        icon = Icons.Default.Timer
-                    )
-                }
+                if (workouts.isEmpty()) {
+                    // Summary Stats Row with clean "--" placeholders
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        WorkoutStatTile(
+                            modifier = Modifier.weight(1f),
+                            label = "Workouts",
+                            value = "--",
+                            icon = Icons.Default.EventNote
+                        )
+                        WorkoutStatTile(
+                            modifier = Modifier.weight(1f),
+                            label = "Volume",
+                            value = "--",
+                            icon = Icons.Default.FitnessCenter
+                        )
+                        WorkoutStatTile(
+                            modifier = Modifier.weight(1f),
+                            label = "Total Sets",
+                            value = "--",
+                            icon = Icons.Default.Repeat
+                        )
+                        WorkoutStatTile(
+                            modifier = Modifier.weight(1f),
+                            label = "Duration",
+                            value = "--",
+                            icon = Icons.Default.Timer
+                        )
+                    }
 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "No workouts recorded for today",
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "Completed workouts in Hevy will appear here automatically.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    // Summary Stats Row
+                    val totalVolume = workouts.sumOf { it.totalVolumeKg }
+                    val totalSets = workouts.sumOf { it.totalSets }
+                    val totalDuration = workouts.sumOf { it.durationMinutes }
 
-                // Workouts list
-                Text(
-                    text = "Ready to Sync Workouts:",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        WorkoutStatTile(
+                            modifier = Modifier.weight(1f),
+                            label = "Workouts",
+                            value = "${workouts.size}",
+                            icon = Icons.Default.EventNote
+                        )
+                        WorkoutStatTile(
+                            modifier = Modifier.weight(1f),
+                            label = "Volume",
+                            value = "${totalVolume} kg",
+                            icon = Icons.Default.FitnessCenter
+                        )
+                        WorkoutStatTile(
+                            modifier = Modifier.weight(1f),
+                            label = "Total Sets",
+                            value = "$totalSets",
+                            icon = Icons.Default.Repeat
+                        )
+                        WorkoutStatTile(
+                            modifier = Modifier.weight(1f),
+                            label = "Duration",
+                            value = "${totalDuration}m",
+                            icon = Icons.Default.Timer
+                        )
+                    }
 
-                workouts.forEach { workout ->
-                    WorkoutItemView(workout = workout)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    // Workouts list
+                    Text(
+                        text = "Ready to Sync Workouts:",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    workouts.forEach { workout ->
+                        WorkoutItemView(workout = workout)
+                    }
                 }
             }
         }
@@ -160,7 +242,7 @@ fun HevyWorkoutsCard(
 private fun WorkoutStatTile(
     label: String,
     value: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     modifier: Modifier = Modifier
 ) {
     Surface(

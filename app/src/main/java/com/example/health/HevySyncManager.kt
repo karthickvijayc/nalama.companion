@@ -36,8 +36,21 @@ class HevySyncManager {
         val trimmedKey = apiKey.trim()
         val nowIso = ZonedDateTime.now().format(DateTimeFormatter.ISO_INSTANT)
 
-        if (isDemoMode || trimmedKey.isBlank()) {
-            // Return realistic workouts matching the user's exact specification
+        if (trimmedKey.isBlank()) {
+            if (isDemoMode) {
+                return@withContext Result.success(
+                    WorkoutsExportPayload(
+                        exportVersion = "1.0",
+                        sourceApp = "Hevy",
+                        syncedAt = nowIso,
+                        workouts = getSampleWorkouts()
+                    )
+                )
+            }
+            return@withContext Result.failure(Exception("Setup not complete: Hevy API key is not configured"))
+        }
+
+        if (isDemoMode) {
             return@withContext Result.success(
                 WorkoutsExportPayload(
                     exportVersion = "1.0",
@@ -94,7 +107,16 @@ class HevySyncManager {
         onProgress: (page: Int, totalPages: Int, workoutsCount: Int) -> Unit
     ): Result<List<WorkoutItem>> = withContext(Dispatchers.IO) {
         val trimmedKey = apiKey.trim()
-        if (isDemoMode || trimmedKey.isBlank()) {
+        if (trimmedKey.isBlank()) {
+            if (isDemoMode) {
+                val sampleWorkouts = generateHistoricalSampleWorkouts()
+                onProgress(1, 1, sampleWorkouts.size)
+                return@withContext Result.success(sampleWorkouts)
+            }
+            return@withContext Result.failure(Exception("Setup not complete: Hevy API key is not configured"))
+        }
+
+        if (isDemoMode) {
             val sampleWorkouts = generateHistoricalSampleWorkouts()
             onProgress(1, 1, sampleWorkouts.size)
             return@withContext Result.success(sampleWorkouts)

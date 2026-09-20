@@ -22,7 +22,6 @@ import com.example.model.TargetFolder
 import com.example.network.WebhookResult
 import com.example.ui.HealthSyncUiState
 import com.example.ui.components.AppsScriptDialog
-import java.time.ZoneId
 
 @Composable
 fun SettingsScreen(
@@ -46,7 +45,6 @@ fun SettingsScreen(
 ) {
     var webhookUrlInput by remember(uiState.settings.webhookUrl) { mutableStateOf(uiState.settings.webhookUrl) }
     var hevyApiKeyInput by remember(uiState.settings.hevyApiKey) { mutableStateOf(uiState.settings.hevyApiKey) }
-    var folderPathInput by remember(uiState.settings.customFolderPath) { mutableStateOf(uiState.settings.customFolderPath) }
     var showAppsScriptDialog by remember { mutableStateOf(false) }
 
     if (showAppsScriptDialog) {
@@ -104,20 +102,22 @@ fun SettingsScreen(
                     )
                 }
 
-                Button(
-                    onClick = onNavigateToLanding,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    ),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.testTag("settings_switch_account_button")
-                ) {
-                    Text(
-                        text = if (uiState.settings.isGoogleConnected) "Switch" else "Connect",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                if (!uiState.settings.isGoogleConnected) {
+                    Button(
+                        onClick = onNavigateToLanding,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.testTag("settings_switch_account_button")
+                    ) {
+                        Text(
+                            text = "Connect",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 
@@ -289,37 +289,23 @@ fun SettingsScreen(
                 }
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Button(
+                onClick = { onTestWebhook(webhookUrlInput) },
+                enabled = !uiState.isTestingWebhook && webhookUrlInput.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                modifier = Modifier.fillMaxWidth().testTag("test_webhook_button")
             ) {
-                Button(
-                    onClick = { onTestWebhook(webhookUrlInput) },
-                    enabled = !uiState.isTestingWebhook && webhookUrlInput.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    ),
-                    modifier = Modifier.weight(1f).testTag("test_webhook_button")
-                ) {
-                    if (uiState.isTestingWebhook) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Testing...", fontWeight = FontWeight.Bold)
-                    } else {
-                        Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Test Connection", fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                OutlinedButton(
-                    onClick = { showAppsScriptDialog = true },
-                    modifier = Modifier.weight(1f).testTag("view_script_guide_button")
-                ) {
-                    Icon(Icons.Default.IntegrationInstructions, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Setup Guide", fontWeight = FontWeight.SemiBold)
+                if (uiState.isTestingWebhook) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Testing...", fontWeight = FontWeight.Bold)
+                } else {
+                    Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Test Connection", fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -428,190 +414,15 @@ fun SettingsScreen(
             }
         }
 
-        // Section 3: Target Folder Hierarchy
-        SettingsCard(title = "Google Drive Target Hierarchy", icon = Icons.Default.Folder) {
+        // Section: Bulk History Export
+        SettingsCard(title = "Bulk History Export", icon = Icons.Default.Backup) {
             Text(
-                text = "Target directory path in Google Drive (auto-created if missing):",
+                text = "Export your full history from ${uiState.settings.sourceApp.displayName} to Google Drive & Sheets with automatic yearly archiving.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            OutlinedTextField(
-                value = folderPathInput,
-                onValueChange = {
-                    folderPathInput = it
-                    onUpdateCustomFolderPath(it)
-                },
-                label = { Text("Drive Folder Path") },
-                placeholder = { Text("nalama.family/imports/...") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("folder_path_input"),
-                singleLine = true
-            )
-
-            // Preset shortcuts
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = folderPathInput == "nalama.family/imports/health_data",
-                    onClick = {
-                        folderPathInput = "nalama.family/imports/health_data"
-                        onUpdateCustomFolderPath(folderPathInput)
-                    },
-                    label = { Text("Health Data Path", fontSize = 11.sp) },
-                    modifier = Modifier.weight(1f)
-                )
-                FilterChip(
-                    selected = folderPathInput == "nalama.family/imports/gym_workouts",
-                    onClick = {
-                        folderPathInput = "nalama.family/imports/gym_workouts"
-                        onUpdateCustomFolderPath(folderPathInput)
-                    },
-                    label = { Text("Gym Workouts Path", fontSize = 11.sp) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-
-        // Section 4: Timezone & Demo Mode
-        SettingsCard(title = "Timezone & Testing", icon = Icons.Default.Tune) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Timezone: ${uiState.settings.timezoneId}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "Schema expects 'Asia/Kolkata' or local system zone",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                TextButton(
-                    onClick = {
-                        val newTz = if (uiState.settings.timezoneId == "Asia/Kolkata") ZoneId.systemDefault().id else "Asia/Kolkata"
-                        onUpdateTimezone(newTz)
-                    }
-                ) {
-                    Text("Toggle Timezone")
-                }
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-            // Demo Mode switch
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Demo Simulation Mode",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "Use realistic metrics for testing in emulator without Google Fit installed",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = uiState.settings.demoModeEnabled,
-                    onCheckedChange = onToggleDemoMode,
-                    modifier = Modifier.testTag("demo_mode_switch")
-                )
-            }
-        }
-
-        // Section: Retention & Archiving Policy
-        SettingsCard(title = "Retention & Archiving Policy", icon = Icons.Default.Inventory2) {
-            Text(
-                text = "Automated data lifecycle management keeps active export files lightweight while preserving full history in Google Drive.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Column(modifier = Modifier.padding(10.dp)) {
-                        Text(
-                            text = "Active File Window",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "${uiState.settings.archiveMaxDays} Days Max",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                Surface(
-                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Column(modifier = Modifier.padding(10.dp)) {
-                        Text(
-                            text = "Archiving Strategy",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.secondary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Yearly Files ([name]_YYYY)",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = "Intra-Day Deduplication",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Multiple exports on the same day perform in-place updates matching the date or workout ID, preventing duplicate rows.",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            OutlinedButton(
+            Button(
                 onClick = onBulkExport,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(10.dp)

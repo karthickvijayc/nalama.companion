@@ -3,7 +3,7 @@
     <item
         android:width="72dp"
         android:height="72dp"
-        android:drawable="@drawable/img_nalama_logo"
+        android:drawable="@drawable/logo_nalama_hdc_transparent"
         android:gravity="center" />
 </layer-list>
 
