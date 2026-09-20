@@ -82,7 +82,7 @@ fun SplashScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Image(
-                painter = painterResource(id = R.drawable.logo_nalama_hdc_transparent),
+                painter = painterResource(id = R.drawable.logo_nalama_hdc_white_bg),
                 contentDescription = "Nalama Health Data Companion Logo",
                 modifier = Modifier
                     .size(280.dp)

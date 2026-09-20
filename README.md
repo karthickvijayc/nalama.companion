@@ -270,8 +270,9 @@ function writeToSheet(sheet, payload, writeMode) {
 2. Paste your Google Apps Script URL into the **Webhook URL** field.
 3. Tap **Test Webhook** to verify the connection.
 4. *(Optional)* If you use Hevy for workouts:
-   * Go to Hevy App > Profile > Settings > **Developer / API**.
-   * Generate an API key and paste it into **Hevy API Key** in Nalama Companion.
+   * **Hevy Pro Subscription Required**: Generating an API key is a feature exclusively available to **Hevy Pro** subscribers.
+   * Generate your personal API key at **[hevy.com/settings?developer](https://hevy.com/settings?developer)**.
+   * Paste your key into the **Hevy API Key** field in Nalama Companion Settings.
 
 ### Step 5: Export & Automate
 * **Manual Export**: Go to **Dashboard** and tap **Sync to Sheets / Drive**.

@@ -86,6 +86,7 @@ fun HevyWorkoutsCard(
 
             if (!isDemoMode && !isApiKeyConfigured) {
                 // Setup not complete: Hevy API key missing
+                val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     shape = RoundedCornerShape(12.dp),
@@ -115,13 +116,62 @@ fun HevyWorkoutsCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
-                        Button(
-                            onClick = onOpenSettings,
-                            modifier = Modifier.testTag("open_settings_for_hevy_button")
+
+                        // Pro subscriber callout
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Open Settings")
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Text(
+                                    text = "★ Hevy Pro Subscription Required",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "API keys are a Hevy Pro feature. Create your developer key at hevy.com/settings?developer",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    try {
+                                        uriHandler.openUri("https://hevy.com/settings?developer")
+                                    } catch (_: Exception) {}
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("open_hevy_developer_portal_card_btn")
+                            ) {
+                                Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Get API Key", fontSize = 12.sp)
+                            }
+                            Button(
+                                onClick = onOpenSettings,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("open_settings_for_hevy_button")
+                            ) {
+                                Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Settings", fontSize = 12.sp)
+                            }
                         }
                     }
                 }

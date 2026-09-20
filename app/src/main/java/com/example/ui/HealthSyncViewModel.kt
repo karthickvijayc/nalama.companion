@@ -214,7 +214,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     val errorResult = WebhookResult(
                         isSuccess = false,
                         httpCode = 400,
-                        message = "Setup not complete: Please configure your Hevy API key in Settings.",
+                        message = "Setup not complete: Please configure your Hevy API key in Settings (Hevy Pro required, hevy.com/settings?developer).",
                         durationMs = 0
                     )
                     _uiState.update { it.copy(isExporting = false, lastExportResult = errorResult) }
@@ -532,7 +532,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                         it.copy(
                             bulkExportState = it.bulkExportState.copy(
                                 isRunning = false,
-                                error = "Setup not complete: Please configure your Hevy API key in Settings."
+                                error = "Setup not complete: Please configure your Hevy API key in Settings (Hevy Pro required, hevy.com/settings?developer)."
                             )
                         )
                     }

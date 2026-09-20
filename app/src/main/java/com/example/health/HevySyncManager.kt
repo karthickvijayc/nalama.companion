@@ -47,7 +47,7 @@ class HevySyncManager {
                     )
                 )
             }
-            return@withContext Result.failure(Exception("Setup not complete: Hevy API key is not configured"))
+            return@withContext Result.failure(Exception("Setup not complete: Hevy API key is not configured. Generate one at https://hevy.com/settings?developer (Hevy Pro required)."))
         }
 
         if (isDemoMode) {
@@ -75,7 +75,11 @@ class HevySyncManager {
             val body = response.body?.string()
 
             if (!response.isSuccessful || body.isNullOrBlank()) {
-                val errorMsg = "Hevy API Error (${response.code}): ${response.message.ifBlank { "Failed to fetch workouts" }}"
+                val errorMsg = if (response.code == 401 || response.code == 403) {
+                    "Hevy API Error (${response.code}): Invalid API key or Pro subscription required. Check https://hevy.com/settings?developer"
+                } else {
+                    "Hevy API Error (${response.code}): ${response.message.ifBlank { "Failed to fetch workouts" }}"
+                }
                 return@withContext Result.failure(Exception(errorMsg))
             }
 
@@ -113,7 +117,7 @@ class HevySyncManager {
                 onProgress(1, 1, sampleWorkouts.size)
                 return@withContext Result.success(sampleWorkouts)
             }
-            return@withContext Result.failure(Exception("Setup not complete: Hevy API key is not configured"))
+            return@withContext Result.failure(Exception("Setup not complete: Hevy API key is not configured. Generate one at https://hevy.com/settings?developer (Hevy Pro required)."))
         }
 
         if (isDemoMode) {
@@ -150,7 +154,12 @@ class HevySyncManager {
                     if (allWorkouts.isNotEmpty()) {
                         break
                     }
-                    return@withContext Result.failure(Exception("Hevy API Error (${response.code}): ${response.message}"))
+                    val errorMsg = if (response.code == 401 || response.code == 403) {
+                        "Hevy API Error (${response.code}): Invalid API key or Pro subscription required. Check https://hevy.com/settings?developer"
+                    } else {
+                        "Hevy API Error (${response.code}): ${response.message}"
+                    }
+                    return@withContext Result.failure(Exception(errorMsg))
                 }
 
                 val json = JSONObject(body)

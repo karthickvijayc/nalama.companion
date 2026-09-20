@@ -46,6 +46,7 @@ fun SettingsScreen(
     var webhookUrlInput by remember(uiState.settings.webhookUrl) { mutableStateOf(uiState.settings.webhookUrl) }
     var hevyApiKeyInput by remember(uiState.settings.hevyApiKey) { mutableStateOf(uiState.settings.hevyApiKey) }
     var showAppsScriptDialog by remember { mutableStateOf(false) }
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
 
     if (showAppsScriptDialog) {
         AppsScriptDialog(onDismiss = { showAppsScriptDialog = false })
@@ -185,7 +186,7 @@ fun SettingsScreen(
                         hevyApiKeyInput = it
                         onUpdateHevyApiKey(it)
                     },
-                    label = { Text("Hevy API Key (Optional for Live Sync)") },
+                    label = { Text("Hevy API Key") },
                     placeholder = { Text("Enter Hevy Personal API Key") },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -193,7 +194,7 @@ fun SettingsScreen(
                     singleLine = true,
                     supportingText = {
                         Text(
-                            text = if (hevyApiKeyInput.isBlank()) "Leave blank to use preloaded Hevy workouts schema." else "Will sync directly via https://api.hevyapp.com/v1/workouts",
+                            text = if (hevyApiKeyInput.isBlank()) "API key required to fetch workouts from your account." else "Syncs workouts directly via https://api.hevyapp.com/v1/workouts",
                             fontSize = 11.sp
                         )
                     },
@@ -208,6 +209,63 @@ fun SettingsScreen(
                         }
                     }
                 )
+
+                // Hevy Developer Key & Pro Subscriber Notice Card
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("hevy_pro_developer_card")
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.VpnKey,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Hevy Pro Subscription Required",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        Text(
+                            text = "To generate an API key for your account, you must be a Hevy Pro subscriber. Once subscribed, generate your personal API key here:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        OutlinedButton(
+                            onClick = {
+                                try {
+                                    uriHandler.openUri("https://hevy.com/settings?developer")
+                                } catch (_: Exception) {}
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("open_hevy_developer_portal_btn")
+                        ) {
+                            Icon(
+                                Icons.Default.OpenInNew,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("hevy.com/settings?developer", fontSize = 12.sp)
+                        }
+                    }
+                }
             } else {
                 Spacer(modifier = Modifier.height(4.dp))
                 OutlinedButton(
@@ -445,7 +503,6 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
