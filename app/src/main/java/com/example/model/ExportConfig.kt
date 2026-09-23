@@ -47,11 +47,13 @@ data class ExportHistoryItem(
     val message: String,
     val payloadPreviewCsv: String? = null,
     val isManualTrigger: Boolean = false,
-    val sourceApp: String = "HealthConnect"
+    val sourceApp: String = "HealthConnect",
+    val targetFolderUrl: String? = null
 )
 
 enum class ExportStatus {
     SUCCESS,
+    LOCAL_ONLY,
     FAILED,
     IN_PROGRESS
 }

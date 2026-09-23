@@ -45,6 +45,13 @@ data class WorkoutsMergeResult(
     val totalActiveRecords: Int
 )
 
+data class CacheSummary(
+    val fileCount: Int,
+    val folderCount: Int,
+    val totalSizeBytes: Long,
+    val fileNames: List<String>
+)
+
 class DriveSyncCacheManager(private val context: Context) {
 
     private val cacheDir: File by lazy {
@@ -128,11 +135,49 @@ class DriveSyncCacheManager(private val context: Context) {
 
     fun getCachedFileInfo(fileName: String): CachedFileInfo? = fileMetadataMap[fileName]
 
+    fun removeCachedFileInfo(fileName: String) {
+        fileMetadataMap.remove(fileName)
+        persistMetadata()
+    }
+
     fun getCachedFolderId(folderPath: String): String? = folderIdMap[folderPath]
 
     fun setCachedFolderId(folderPath: String, id: String) {
         folderIdMap[folderPath] = id
         persistMetadata()
+    }
+
+    fun removeCachedFolderId(folderPath: String) {
+        folderIdMap.remove(folderPath)
+        persistMetadata()
+    }
+
+    @Synchronized
+    fun clearAllCache(): Int {
+        var count = 0
+        try {
+            fileMetadataMap.clear()
+            folderIdMap.clear()
+            persistMetadata()
+            cacheDir.listFiles()?.forEach { file ->
+                if (file.name != "metadata.json") {
+                    if (file.delete()) count++
+                }
+            }
+        } catch (_: Exception) {}
+        return count
+    }
+
+    fun getCacheSummary(): CacheSummary {
+        val files = cacheDir.listFiles() ?: emptyArray()
+        val totalBytes = files.sumOf { it.length() }
+        val names = fileMetadataMap.keys.toList()
+        return CacheSummary(
+            fileCount = fileMetadataMap.size,
+            folderCount = folderIdMap.size,
+            totalSizeBytes = totalBytes,
+            fileNames = names
+        )
     }
 
     fun updateCachedFile(

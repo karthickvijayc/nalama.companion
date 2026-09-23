@@ -4,6 +4,7 @@ import android.app.Application
 import com.example.data.ExportHistoryStore
 import com.example.data.PreferencesManager
 import com.example.sync.SyncScheduler
+import com.example.util.AppLogger
 
 class HealthSyncApplication : Application() {
 
@@ -15,6 +16,7 @@ class HealthSyncApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        AppLogger.init(this)
         preferencesManager = PreferencesManager(this)
         historyStore = ExportHistoryStore(this)
 

@@ -13,6 +13,7 @@ import com.example.health.HealthConnectAvailability
 import com.example.health.HealthConnectManager
 import com.example.health.HevySyncManager
 import com.example.model.*
+import com.example.util.AppLogger
 import com.example.util.CsvConverter
 import com.example.util.WorkoutCsvConverter
 import java.time.LocalDate
@@ -37,6 +38,11 @@ class HealthSyncWorker(
         val now = ZonedDateTime.now(zoneId)
         val formattedNow = now.format(DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm:ss"))
         val isManual = inputData.getBoolean("is_manual", false)
+
+        AppLogger.i(
+            "WORKER",
+            "Background sync started [${if (isManual) "Manual" else "Scheduled"}] - Source: ${settings.sourceApp.displayName}, Token present: ${settings.googleOAuthAccessToken.isNotBlank()}"
+        )
 
         val folderPath = settings.customFolderPath.ifBlank { settings.targetFolder.folderPath }
         val subfolder = settings.targetFolder.subfolder
@@ -65,23 +71,31 @@ class HealthSyncWorker(
                 targetSubfolder = subfolder,
                 fileName = defaultFileName,
                 writeMode = settings.writeMode,
-                archiveMaxDays = settings.archiveMaxDays
+                archiveMaxDays = settings.archiveMaxDays,
+                isDemoMode = settings.demoModeEnabled
             )
 
             val csvPreview = WorkoutCsvConverter.toCsvString(workoutsPayload.workouts, settings.writeMode == WriteMode.OVERWRITE)
+
+            val status = when {
+                directResult.isSuccess -> ExportStatus.SUCCESS
+                directResult.isLocalOnlyFallback -> ExportStatus.LOCAL_ONLY
+                else -> ExportStatus.FAILED
+            }
 
             val historyItem = ExportHistoryItem(
                 id = UUID.randomUUID().toString(),
                 timestamp = startTime,
                 formattedDate = formattedNow,
-                status = if (directResult.isSuccess) ExportStatus.SUCCESS else ExportStatus.FAILED,
+                status = status,
                 writeMode = settings.writeMode,
                 folderPath = folderPath,
                 recordsCount = workoutsPayload.workouts.size,
                 message = directResult.message,
                 payloadPreviewCsv = csvPreview,
                 isManualTrigger = isManual,
-                sourceApp = "Hevy"
+                sourceApp = "Hevy",
+                targetFolderUrl = directResult.targetFolderUrl
             )
 
             historyStore.addHistoryItem(historyItem)
@@ -92,11 +106,13 @@ class HealthSyncWorker(
             )
 
             if (directResult.isSuccess) {
+                AppLogger.s("WORKER", "Background workout sync succeeded: ${workoutsPayload.workouts.size} workouts exported.")
                 showNotification("Workout Sync Succeeded", "Synced ${workoutsPayload.workouts.size} workout(s) to Google Drive.")
                 return Result.success()
             } else {
+                AppLogger.w("WORKER", "Background workout sync notice: ${directResult.message}")
                 showNotification("Workout Sync Notice", directResult.message)
-                return Result.retry()
+                return if (directResult.isLocalOnlyFallback) Result.success() else Result.retry()
             }
         } else {
             val healthManager = HealthConnectManager(context)
@@ -129,23 +145,31 @@ class HealthSyncWorker(
                 targetSubfolder = subfolder,
                 fileName = defaultFileName,
                 writeMode = settings.writeMode,
-                archiveMaxDays = settings.archiveMaxDays
+                archiveMaxDays = settings.archiveMaxDays,
+                isDemoMode = settings.demoModeEnabled
             )
 
             val csvPreview = CsvConverter.toCsvString(exportPayload.dailyRecords, settings.writeMode == WriteMode.OVERWRITE)
+
+            val status = when {
+                directResult.isSuccess -> ExportStatus.SUCCESS
+                directResult.isLocalOnlyFallback -> ExportStatus.LOCAL_ONLY
+                else -> ExportStatus.FAILED
+            }
 
             val historyItem = ExportHistoryItem(
                 id = UUID.randomUUID().toString(),
                 timestamp = startTime,
                 formattedDate = formattedNow,
-                status = if (directResult.isSuccess) ExportStatus.SUCCESS else ExportStatus.FAILED,
+                status = status,
                 writeMode = settings.writeMode,
                 folderPath = folderPath,
                 recordsCount = dailyRecords.size,
                 message = directResult.message,
                 payloadPreviewCsv = csvPreview,
                 isManualTrigger = isManual,
-                sourceApp = "HealthConnect"
+                sourceApp = "HealthConnect",
+                targetFolderUrl = directResult.targetFolderUrl
             )
 
             historyStore.addHistoryItem(historyItem)
@@ -156,11 +180,13 @@ class HealthSyncWorker(
             )
 
             if (directResult.isSuccess) {
+                AppLogger.s("WORKER", "Background health sync succeeded: ${dailyRecords.size} records exported.")
                 showNotification("Health Sync Succeeded", "Synced ${dailyRecords.size} record(s) to Google Drive.")
                 return Result.success()
             } else {
+                AppLogger.w("WORKER", "Background health sync notice: ${directResult.message}")
                 showNotification("Health Sync Notice", directResult.message)
-                return Result.retry()
+                return if (directResult.isLocalOnlyFallback) Result.success() else Result.retry()
             }
         }
     }
@@ -193,4 +219,3 @@ class HealthSyncWorker(
         } catch (_: Exception) {}
     }
 }
-

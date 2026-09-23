@@ -11,8 +11,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,6 +26,7 @@ fun HistoryScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedItemForDetail by remember { mutableStateOf<ExportHistoryItem?>(null) }
+    val uriHandler = LocalUriHandler.current
 
     Column(
         modifier = modifier
@@ -109,17 +110,55 @@ fun HistoryScreen(
 
     // Detail Dialog
     selectedItemForDetail?.let { item ->
+        val statusColor = when (item.status) {
+            ExportStatus.SUCCESS -> Color(0xFF16A34A)
+            ExportStatus.LOCAL_ONLY -> Color(0xFFD97706)
+            ExportStatus.IN_PROGRESS -> Color(0xFF2563EB)
+            ExportStatus.FAILED -> Color(0xFFDC2626)
+        }
+        val statusIcon = when (item.status) {
+            ExportStatus.SUCCESS -> Icons.Default.CheckCircle
+            ExportStatus.LOCAL_ONLY -> Icons.Default.PhoneAndroid
+            ExportStatus.IN_PROGRESS -> Icons.Default.Sync
+            ExportStatus.FAILED -> Icons.Default.Error
+        }
+        val statusTitle = when (item.status) {
+            ExportStatus.SUCCESS -> "Exported to Google Drive"
+            ExportStatus.LOCAL_ONLY -> "Saved Locally (Unauthorized)"
+            ExportStatus.IN_PROGRESS -> "Export in Progress"
+            ExportStatus.FAILED -> "Export Failed"
+        }
+
         AlertDialog(
             onDismissRequest = { selectedItemForDetail = null },
             confirmButton = {
-                Button(
-                    onClick = { selectedItemForDetail = null },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) {
-                    Text("Close", fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!item.targetFolderUrl.isNullOrBlank()) {
+                        Button(
+                            onClick = {
+                                try {
+                                    uriHandler.openUri(item.targetFolderUrl)
+                                } catch (_: Exception) {}
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        ) {
+                            Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Open in Drive", fontSize = 12.sp)
+                        }
+                    }
+                    Button(
+                        onClick = { selectedItemForDetail = null },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
+                        Text("Close", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
                 }
             },
             title = {
@@ -128,13 +167,13 @@ fun HistoryScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = if (item.status == ExportStatus.SUCCESS) Icons.Default.CheckCircle else Icons.Default.Error,
+                        imageVector = statusIcon,
                         contentDescription = null,
-                        tint = if (item.status == ExportStatus.SUCCESS) Color(0xFF16A34A) else Color(0xFFDC2626),
+                        tint = statusColor,
                         modifier = Modifier.size(24.dp)
                     )
                     Text(
-                        text = if (item.status == ExportStatus.SUCCESS) "Export Successful" else "Export Failed",
+                        text = statusTitle,
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.titleMedium
                     )
@@ -175,7 +214,7 @@ fun HistoryScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Records: ${item.recordsCount} record(s) synced",
+                                text = "Records: ${item.recordsCount} record(s)",
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -200,6 +239,19 @@ private fun HistoryItemCard(
     item: ExportHistoryItem,
     onClick: () -> Unit
 ) {
+    val statusColor = when (item.status) {
+        ExportStatus.SUCCESS -> Color(0xFF10B981)
+        ExportStatus.LOCAL_ONLY -> Color(0xFFF59E0B)
+        ExportStatus.IN_PROGRESS -> Color(0xFF3B82F6)
+        ExportStatus.FAILED -> Color(0xFFEF4444)
+    }
+    val statusIcon = when (item.status) {
+        ExportStatus.SUCCESS -> Icons.Default.CheckCircle
+        ExportStatus.LOCAL_ONLY -> Icons.Default.PhoneAndroid
+        ExportStatus.IN_PROGRESS -> Icons.Default.Sync
+        ExportStatus.FAILED -> Icons.Default.Error
+    }
+
     Card(
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
@@ -215,18 +267,39 @@ private fun HistoryItemCard(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Icon(
-                imageVector = if (item.status == ExportStatus.SUCCESS) Icons.Default.CheckCircle else Icons.Default.Error,
+                imageVector = statusIcon,
                 contentDescription = null,
-                tint = if (item.status == ExportStatus.SUCCESS) Color(0xFF10B981) else Color(0xFFEF4444),
+                tint = statusColor,
                 modifier = Modifier.size(24.dp)
             )
 
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = item.formattedDate,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = item.formattedDate,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (item.status == ExportStatus.LOCAL_ONLY) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFFFEF3C7),
+                            modifier = Modifier.padding(start = 4.dp)
+                        ) {
+                            Text(
+                                text = "Local only",
+                                fontSize = 10.sp,
+                                color = Color(0xFFB45309),
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
 
                 Text(
                     text = item.folderPath,

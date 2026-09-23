@@ -7,11 +7,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -30,6 +28,8 @@ import com.example.health.HealthConnectManager
 import com.example.model.SyncSourceApp
 import com.example.ui.AppScreen
 import com.example.ui.HealthSyncViewModel
+import com.example.ui.components.DiagnosticsDialog
+import com.example.ui.components.GoogleDriveAuthDialog
 import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.HistoryScreen
 import com.example.ui.screens.LandingScreen
@@ -70,6 +70,7 @@ class MainActivity : ComponentActivity() {
             HealthConnectSyncTheme {
                 val uiState by viewModel.uiState.collectAsState()
                 val history by viewModel.history.collectAsState()
+                val diagnosticLogs by viewModel.diagnosticLogs.collectAsState()
 
                 when (uiState.currentScreen) {
                     AppScreen.SPLASH -> {
@@ -100,17 +101,17 @@ class MainActivity : ComponentActivity() {
                                 TopAppBar(
                                     title = {
                                         Row(
-                                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                            verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                                         ) {
                                             Surface(
-                                                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                                                color = androidx.compose.ui.graphics.Color.White,
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = Color.White,
                                                 shadowElevation = 1.dp,
                                                 modifier = Modifier.size(36.dp)
                                             ) {
                                                 Box(
-                                                    contentAlignment = androidx.compose.ui.Alignment.Center,
+                                                    contentAlignment = Alignment.Center,
                                                     modifier = Modifier.padding(2.dp)
                                                 ) {
                                                     Image(
@@ -122,11 +123,11 @@ class MainActivity : ComponentActivity() {
                                             }
                                             Column {
                                                 Row(
-                                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                                    verticalAlignment = Alignment.CenterVertically,
                                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                                 ) {
                                                     Text(
-                                                        text = "Nalama Health Data Companion",
+                                                        text = "Nalama Health Companion",
                                                         fontWeight = FontWeight.Bold,
                                                         fontSize = 15.sp,
                                                         color = MaterialTheme.colorScheme.primary
@@ -148,6 +149,17 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     actions = {
+                                        // Tester Diagnostics Quick Button
+                                        IconButton(
+                                            onClick = { viewModel.openDiagnosticsDialog() },
+                                            modifier = Modifier.testTag("app_bar_diagnostics_button")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.BugReport,
+                                                contentDescription = "Diagnostics & Tester Tools",
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
                                         IconButton(
                                             onClick = { viewModel.refreshActiveData() },
                                             modifier = Modifier.testTag("app_bar_refresh_button")
@@ -250,11 +262,41 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToLanding = { viewModel.navigateTo(AppScreen.LANDING) },
                                     onDisconnectGoogle = { viewModel.disconnectGoogleAccount() },
                                     onBulkExport = { viewModel.startBulkExport(365) },
+                                    onOpenDriveAuth = { viewModel.openDriveAuthDialog() },
+                                    onOpenDiagnostics = { viewModel.openDiagnosticsDialog() },
+                                    onClearCache = { viewModel.clearSyncCache() },
                                     modifier = Modifier.padding(innerPadding)
                                 )
                             }
                         }
                     }
+                }
+
+                // Tester Diagnostics Dialog
+                if (uiState.showDiagnosticsDialog) {
+                    DiagnosticsDialog(
+                        logs = diagnosticLogs,
+                        cacheSummary = uiState.cacheSummary,
+                        isDiagnosingDrive = uiState.isDiagnosingDrive,
+                        diagnosticTestResult = uiState.diagnosticTestResult,
+                        diagnosticReportText = viewModel.getDiagnosticReport(),
+                        onRunDriveDiagnostic = { viewModel.runDriveDiagnostic() },
+                        onClearCache = { viewModel.clearSyncCache() },
+                        onClearLogs = { viewModel.clearDiagnosticLogs() },
+                        onDismiss = { viewModel.dismissDiagnosticsDialog() }
+                    )
+                }
+
+                // Google Drive Authorization & Token Dialog
+                if (uiState.showDriveAuthDialog) {
+                    GoogleDriveAuthDialog(
+                        settings = uiState.settings,
+                        onDismiss = { viewModel.dismissDriveAuthDialog() },
+                        onVerifyAndSaveToken = { token, onComplete ->
+                            viewModel.verifyAndSaveGoogleOAuthToken(token, onComplete)
+                        },
+                        onClearToken = { viewModel.clearGoogleOAuthToken() }
+                    )
                 }
             }
         }

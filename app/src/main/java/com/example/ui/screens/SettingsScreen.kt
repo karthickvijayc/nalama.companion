@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,10 +36,14 @@ fun SettingsScreen(
     onNavigateToLanding: () -> Unit = {},
     onDisconnectGoogle: () -> Unit = {},
     onBulkExport: () -> Unit = {},
+    onOpenDriveAuth: () -> Unit = {},
+    onOpenDiagnostics: () -> Unit = {},
+    onClearCache: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var hevyApiKeyInput by remember(uiState.settings.hevyApiKey) { mutableStateOf(uiState.settings.hevyApiKey) }
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    val hasDriveToken = uiState.settings.googleOAuthAccessToken.isNotBlank()
 
     Column(
         modifier = modifier
@@ -111,6 +116,44 @@ fun SettingsScreen(
             }
 
             if (uiState.settings.isGoogleConnected) {
+                // Token Authorization Status Pill
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (hasDriveToken) Color(0xFFE6F4EA) else Color(0xFFFEF7E0),
+                    border = BorderStroke(1.dp, if (hasDriveToken) Color(0xFFCEEAD6) else Color(0xFFFEEFC3)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (hasDriveToken) Icons.Default.CheckCircle else Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = if (hasDriveToken) Color(0xFF137333) else Color(0xFFB06000),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (hasDriveToken) "Drive Authorization Active" else "Authorization Required for Cloud Upload",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = if (hasDriveToken) Color(0xFF137333) else Color(0xFFB06000)
+                            )
+                            Text(
+                                text = if (hasDriveToken) {
+                                    "Exports are actively pushed to Google Drive."
+                                } else {
+                                    "Exports are currently saved locally on phone only until authorized."
+                                },
+                                fontSize = 11.sp,
+                                color = if (hasDriveToken) Color(0xFF137333) else Color(0xFF8A4900)
+                            )
+                        }
+                    }
+                }
+
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     shape = RoundedCornerShape(10.dp),
@@ -140,6 +183,21 @@ fun SettingsScreen(
                     }
                 }
 
+                // Manage Authorization / Token Button
+                OutlinedButton(
+                    onClick = onOpenDriveAuth,
+                    modifier = Modifier.fillMaxWidth().testTag("manage_drive_auth_button")
+                ) {
+                    Icon(Icons.Default.VpnKey, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (hasDriveToken) "Manage Drive Token & Permissions" else "Authorize Google Drive (Configure Token)",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp
+                    )
+                }
+
+                // Verify Drive Connection Button
                 Button(
                     onClick = onTestDriveConnection,
                     enabled = !uiState.isTestingDrive,
@@ -211,6 +269,58 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Sign Out", fontSize = 12.sp)
                     }
+                }
+            }
+        }
+
+        // Section: Diagnostics & Tester Tools
+        SettingsCard(title = "Diagnostics & Tester Tools", icon = Icons.Default.BugReport) {
+            Text(
+                text = "Troubleshooting tools for testers. Inspect live logs, run direct Drive API checks, or reset cache if remote files were deleted.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // Cache Summary Info Pill
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.Storage, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                    Text(
+                        text = "Local sync cache: ${uiState.cacheSummary.fileCount} file(s) tracked",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.5.sp
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = onOpenDiagnostics,
+                    modifier = Modifier.weight(1.3f).testTag("open_diagnostics_console_btn")
+                ) {
+                    Icon(Icons.Default.Terminal, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Live Logs & Console", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
+                    onClick = onClearCache,
+                    modifier = Modifier.weight(1f).testTag("settings_reset_cache_btn")
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Reset Cache", fontSize = 12.sp)
                 }
             }
         }

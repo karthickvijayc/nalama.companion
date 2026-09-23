@@ -78,9 +78,29 @@ class PreferencesManager(context: Context) {
         )
     }
 
-    fun updateGoogleOAuthAccessToken(token: String) {
-        prefs.edit().putString(KEY_GOOGLE_OAUTH_ACCESS_TOKEN, token.trim()).apply()
-        _settings.value = _settings.value.copy(googleOAuthAccessToken = token.trim())
+    fun updateGoogleOAuthAccessToken(token: String, email: String? = null, displayName: String? = null) {
+        val trimmedToken = token.trim()
+        val editor = prefs.edit().putString(KEY_GOOGLE_OAUTH_ACCESS_TOKEN, trimmedToken)
+        val isConnected = trimmedToken.isNotBlank()
+        editor.putBoolean(KEY_GOOGLE_CONNECTED, isConnected)
+        if (isConnected) {
+            editor.putBoolean(KEY_HAS_COMPLETED_ONBOARDING, true)
+        }
+        if (email != null) {
+            editor.putString(KEY_CONNECTED_EMAIL, email.trim())
+        }
+        if (displayName != null) {
+            editor.putString(KEY_CONNECTED_DISPLAY_NAME, displayName.trim())
+        }
+        editor.apply()
+
+        _settings.value = _settings.value.copy(
+            googleOAuthAccessToken = trimmedToken,
+            isGoogleConnected = isConnected,
+            hasCompletedOnboarding = if (isConnected) true else _settings.value.hasCompletedOnboarding,
+            connectedEmail = email?.trim() ?: _settings.value.connectedEmail,
+            connectedDisplayName = displayName?.trim() ?: _settings.value.connectedDisplayName
+        )
     }
 
     fun updateSourceApp(sourceApp: SyncSourceApp) {
@@ -159,12 +179,14 @@ class PreferencesManager(context: Context) {
             .putBoolean(KEY_GOOGLE_CONNECTED, false)
             .putString(KEY_CONNECTED_EMAIL, "")
             .putString(KEY_CONNECTED_DISPLAY_NAME, "")
+            .putString(KEY_GOOGLE_OAUTH_ACCESS_TOKEN, "")
             .putBoolean(KEY_HAS_COMPLETED_ONBOARDING, false)
             .apply()
         _settings.value = _settings.value.copy(
             isGoogleConnected = false,
             connectedEmail = "",
             connectedDisplayName = "",
+            googleOAuthAccessToken = "",
             hasCompletedOnboarding = false
         )
     }

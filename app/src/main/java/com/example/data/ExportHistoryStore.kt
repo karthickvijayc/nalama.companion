@@ -42,7 +42,8 @@ class ExportHistoryStore(context: Context) {
                         message = obj.optString("message", ""),
                         payloadPreviewCsv = obj.optString("payloadPreviewCsv", null),
                         isManualTrigger = obj.optBoolean("isManualTrigger", false),
-                        sourceApp = obj.optString("sourceApp", "HealthConnect")
+                        sourceApp = obj.optString("sourceApp", "HealthConnect"),
+                        targetFolderUrl = if (obj.has("targetFolderUrl") && !obj.isNull("targetFolderUrl")) obj.getString("targetFolderUrl") else null
                     )
                 )
             }
@@ -81,6 +82,7 @@ class ExportHistoryStore(context: Context) {
                 item.payloadPreviewCsv?.let { put("payloadPreviewCsv", it) }
                 put("isManualTrigger", item.isManualTrigger)
                 put("sourceApp", item.sourceApp)
+                item.targetFolderUrl?.let { put("targetFolderUrl", it) }
             }
             array.put(obj)
         }

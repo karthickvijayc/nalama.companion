@@ -143,4 +143,51 @@ class DriveSyncCacheManagerTest {
         assertEquals(1, merged.totalActiveRecords)
         assertTrue(merged.activeCsv.contains("Chest & Triceps"))
     }
+
+    @Test
+    fun testCacheClearAndReset() {
+        val fileName = "daily_biometrics_sync.csv"
+        cacheManager.saveCachedFileInfo(
+            fileName = fileName,
+            fileId = "drive_file_123",
+            folderId = "drive_folder_456",
+            md5 = "abcdef0123456789abcdef0123456789",
+            activeCsv = "date,steps\n2026-09-06,5000",
+            totalRecords = 1,
+            sizeBytes = 32L
+        )
+
+        assertNotNull(cacheManager.getCachedFileInfo(fileName))
+        val summaryBefore = cacheManager.getCacheSummary()
+        assertEquals(1, summaryBefore.fileCount)
+
+        // Clear all cache
+        val cleared = cacheManager.clearAllCache()
+        assertTrue(cleared >= 1)
+
+        assertNull(cacheManager.getCachedFileInfo(fileName))
+        val summaryAfter = cacheManager.getCacheSummary()
+        assertEquals(0, summaryAfter.fileCount)
+    }
+
+    @Test
+    fun testRemoveSingleCachedFileOnRemoteDeletion() {
+        val fileName = "workouts_hevy_sync.csv"
+        cacheManager.saveCachedFileInfo(
+            fileName = fileName,
+            fileId = "file_789",
+            folderId = "folder_012",
+            md5 = "1234567890abcdef1234567890abcdef",
+            activeCsv = "date,title\n2026-09-06,Leg Day",
+            totalRecords = 1,
+            sizeBytes = 28L
+        )
+
+        assertTrue(cacheManager.isCacheValid(fileName, "1234567890abcdef1234567890abcdef"))
+
+        // Simulate file removed remotely
+        cacheManager.removeCachedFileInfo(fileName)
+        assertFalse(cacheManager.isCacheValid(fileName, "1234567890abcdef1234567890abcdef"))
+        assertNull(cacheManager.getCachedFileInfo(fileName))
+    }
 }
