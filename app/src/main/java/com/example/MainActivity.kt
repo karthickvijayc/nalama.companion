@@ -29,7 +29,6 @@ import com.example.model.SyncSourceApp
 import com.example.ui.AppScreen
 import com.example.ui.HealthSyncViewModel
 import com.example.ui.components.DiagnosticsDialog
-import com.example.ui.components.GoogleDriveAuthDialog
 import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.HistoryScreen
 import com.example.ui.screens.LandingScreen
@@ -262,7 +261,6 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToLanding = { viewModel.navigateTo(AppScreen.LANDING) },
                                     onDisconnectGoogle = { viewModel.disconnectGoogleAccount() },
                                     onBulkExport = { viewModel.startBulkExport(365) },
-                                    onOpenDriveAuth = { viewModel.openDriveAuthDialog() },
                                     onOpenDiagnostics = { viewModel.openDiagnosticsDialog() },
                                     onClearCache = { viewModel.clearSyncCache() },
                                     modifier = Modifier.padding(innerPadding)
@@ -284,18 +282,6 @@ class MainActivity : ComponentActivity() {
                         onClearCache = { viewModel.clearSyncCache() },
                         onClearLogs = { viewModel.clearDiagnosticLogs() },
                         onDismiss = { viewModel.dismissDiagnosticsDialog() }
-                    )
-                }
-
-                // Google Drive Authorization & Token Dialog
-                if (uiState.showDriveAuthDialog) {
-                    GoogleDriveAuthDialog(
-                        settings = uiState.settings,
-                        onDismiss = { viewModel.dismissDriveAuthDialog() },
-                        onVerifyAndSaveToken = { token, onComplete ->
-                            viewModel.verifyAndSaveGoogleOAuthToken(token, onComplete)
-                        },
-                        onClearToken = { viewModel.clearGoogleOAuthToken() }
                     )
                 }
             }

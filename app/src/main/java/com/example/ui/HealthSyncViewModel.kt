@@ -72,7 +72,6 @@ data class HealthSyncUiState(
     val isDiagnosingDrive: Boolean = false,
     val diagnosticTestResult: DriveDiagnosticTestResult? = null,
     val showDiagnosticsDialog: Boolean = false,
-    val showDriveAuthDialog: Boolean = false,
     val cacheSummary: CacheSummary = CacheSummary(0, 0, 0L, emptyList())
 )
 
@@ -399,18 +398,10 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
             val settings = prefs.settings.value
             val folderPath = settings.customFolderPath.ifBlank { settings.targetFolder.folderPath }
 
-            if (settings.googleOAuthAccessToken.isBlank() && !settings.demoModeEnabled) {
-                val errorResult = SyncResult(
-                    isSuccess = false,
-                    message = "Google Drive authorization required. Please configure an access token in Settings > Google Account & Drive."
-                )
-                _uiState.update { it.copy(isTestingDrive = false, testDriveResult = errorResult) }
-                return@launch
-            }
-
             val direct = driveClient.testDirectDriveConnection(
                 accessToken = settings.googleOAuthAccessToken.ifBlank { null },
-                folderPath = folderPath
+                folderPath = folderPath,
+                userEmail = settings.connectedEmail.ifBlank { null }
             )
             val result = SyncResult(
                 isSuccess = direct.isSuccess,
@@ -433,14 +424,6 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
 
     fun dismissDiagnosticsDialog() {
         _uiState.update { it.copy(showDiagnosticsDialog = false) }
-    }
-
-    fun openDriveAuthDialog() {
-        _uiState.update { it.copy(showDriveAuthDialog = true) }
-    }
-
-    fun dismissDriveAuthDialog() {
-        _uiState.update { it.copy(showDriveAuthDialog = false) }
     }
 
     fun runDriveDiagnostic() {

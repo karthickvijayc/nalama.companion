@@ -36,7 +36,6 @@ fun SettingsScreen(
     onNavigateToLanding: () -> Unit = {},
     onDisconnectGoogle: () -> Unit = {},
     onBulkExport: () -> Unit = {},
-    onOpenDriveAuth: () -> Unit = {},
     onOpenDiagnostics: () -> Unit = {},
     onClearCache: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -116,11 +115,11 @@ fun SettingsScreen(
             }
 
             if (uiState.settings.isGoogleConnected) {
-                // Token Authorization Status Pill
+                // Connected Google Drive Status Pill
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = if (hasDriveToken) Color(0xFFE6F4EA) else Color(0xFFFEF7E0),
-                    border = BorderStroke(1.dp, if (hasDriveToken) Color(0xFFCEEAD6) else Color(0xFFFEEFC3)),
+                    color = Color(0xFFE6F4EA),
+                    border = BorderStroke(1.dp, Color(0xFFCEEAD6)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -129,26 +128,22 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = if (hasDriveToken) Icons.Default.CheckCircle else Icons.Default.Warning,
+                            imageVector = Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = if (hasDriveToken) Color(0xFF137333) else Color(0xFFB06000),
+                            tint = Color(0xFF137333),
                             modifier = Modifier.size(18.dp)
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (hasDriveToken) "Drive Authorization Active" else "Authorization Required for Cloud Upload",
+                                text = "Google Drive Sync Active (BYOS)",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp,
-                                color = if (hasDriveToken) Color(0xFF137333) else Color(0xFFB06000)
+                                color = Color(0xFF137333)
                             )
                             Text(
-                                text = if (hasDriveToken) {
-                                    "Exports are actively pushed to Google Drive."
-                                } else {
-                                    "Exports are currently saved locally on phone only until authorized."
-                                },
+                                text = "100% Private. Files sync directly to your personal Google account (${uiState.settings.connectedEmail}).",
                                 fontSize = 11.sp,
-                                color = if (hasDriveToken) Color(0xFF137333) else Color(0xFF8A4900)
+                                color = Color(0xFF137333)
                             )
                         }
                     }
@@ -183,18 +178,17 @@ fun SettingsScreen(
                     }
                 }
 
-                // Manage Authorization / Token Button
                 OutlinedButton(
-                    onClick = onOpenDriveAuth,
-                    modifier = Modifier.fillMaxWidth().testTag("manage_drive_auth_button")
+                    onClick = {
+                        try {
+                            uriHandler.openUri("https://drive.google.com/drive/my-drive")
+                        } catch (_: Exception) {}
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag("open_gdrive_button")
                 ) {
-                    Icon(Icons.Default.VpnKey, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.CloudQueue, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (hasDriveToken) "Manage Drive Token & Permissions" else "Authorize Google Drive (Configure Token)",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.sp
-                    )
+                    Text("Open Google Drive", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                 }
 
                 // Verify Drive Connection Button

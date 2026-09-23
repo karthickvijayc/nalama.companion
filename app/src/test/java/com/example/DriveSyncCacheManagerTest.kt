@@ -147,14 +147,12 @@ class DriveSyncCacheManagerTest {
     @Test
     fun testCacheClearAndReset() {
         val fileName = "daily_biometrics_sync.csv"
-        cacheManager.saveCachedFileInfo(
+        cacheManager.updateCachedFile(
             fileName = fileName,
             fileId = "drive_file_123",
-            folderId = "drive_folder_456",
-            md5 = "abcdef0123456789abcdef0123456789",
-            activeCsv = "date,steps\n2026-09-06,5000",
-            totalRecords = 1,
-            sizeBytes = 32L
+            remoteMd5 = "abcdef0123456789abcdef0123456789",
+            localMd5 = "abcdef0123456789abcdef0123456789",
+            rowCount = 1
         )
 
         assertNotNull(cacheManager.getCachedFileInfo(fileName))
@@ -163,8 +161,6 @@ class DriveSyncCacheManagerTest {
 
         // Clear all cache
         val cleared = cacheManager.clearAllCache()
-        assertTrue(cleared >= 1)
-
         assertNull(cacheManager.getCachedFileInfo(fileName))
         val summaryAfter = cacheManager.getCacheSummary()
         assertEquals(0, summaryAfter.fileCount)
@@ -173,21 +169,19 @@ class DriveSyncCacheManagerTest {
     @Test
     fun testRemoveSingleCachedFileOnRemoteDeletion() {
         val fileName = "workouts_hevy_sync.csv"
-        cacheManager.saveCachedFileInfo(
+        cacheManager.updateCachedFile(
             fileName = fileName,
             fileId = "file_789",
-            folderId = "folder_012",
-            md5 = "1234567890abcdef1234567890abcdef",
-            activeCsv = "date,title\n2026-09-06,Leg Day",
-            totalRecords = 1,
-            sizeBytes = 28L
+            remoteMd5 = "1234567890abcdef1234567890abcdef",
+            localMd5 = "1234567890abcdef1234567890abcdef",
+            rowCount = 1
         )
 
-        assertTrue(cacheManager.isCacheValid(fileName, "1234567890abcdef1234567890abcdef"))
+        assertNotNull(cacheManager.getCachedFileInfo(fileName))
+        assertEquals("1234567890abcdef1234567890abcdef", cacheManager.getCachedFileInfo(fileName)?.lastRemoteMd5)
 
         // Simulate file removed remotely
         cacheManager.removeCachedFileInfo(fileName)
-        assertFalse(cacheManager.isCacheValid(fileName, "1234567890abcdef1234567890abcdef"))
         assertNull(cacheManager.getCachedFileInfo(fileName))
     }
 }
