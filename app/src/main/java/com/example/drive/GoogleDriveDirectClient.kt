@@ -102,13 +102,22 @@ class GoogleDriveDirectClient(private val context: Context) {
             val bytesPayload = mergeResult.activeCsv.toByteArray().size.toLong()
             AppLogger.d("CACHE", "Local baseline prepared: ${mergeResult.totalActiveRecords} records, ${bytesPayload}B, MD5: $localActiveMd5")
 
-            // 3. If an access token is provided, perform live Google Drive REST API calls
-            if (!accessToken.isNullOrBlank()) {
+            // 3. Resolve active OAuth token (provided or via Google Play Services)
+            var activeToken = accessToken
+            if (activeToken.isNullOrBlank()) {
+                try {
+                    activeToken = com.example.auth.GoogleAuthHelper.fetchDriveAccessToken(context)
+                } catch (e: Exception) {
+                    AppLogger.d("AUTH", "Automatic token fetch returned null: ${e.message}")
+                }
+            }
+
+            if (!activeToken.isNullOrBlank()) {
                 AppLogger.d("DRIVE", "Live Google Drive sync active. Resolving folder structure '$folderPath'...")
-                val folderId = resolveOrCreateFolderPath(accessToken, folderPath)
+                val folderId = resolveOrCreateFolderPath(activeToken, folderPath)
 
                 // Check remote file metadata
-                val remoteMeta = queryRemoteFileMetadata(accessToken, folderId, activeCsvFileName)
+                val remoteMeta = queryRemoteFileMetadata(activeToken, folderId, activeCsvFileName)
 
                 val fileId: String
                 val finalRemoteMd5: String
@@ -119,7 +128,7 @@ class GoogleDriveDirectClient(private val context: Context) {
 
                     if (remoteMd5.isNotEmpty() && cachedInfo != null && remoteMd5 != cachedInfo.lastRemoteMd5) {
                         AppLogger.i("DRIVE", "Remote file was modified externally on Google Drive. Fetching and re-merging...")
-                        val remoteContent = downloadRemoteFileText(accessToken, remoteMeta.getString("id"))
+                        val remoteContent = downloadRemoteFileText(activeToken, remoteMeta.getString("id"))
                         val reMerge = cacheManager.mergeBiometricsCsv(remoteContent, payload.dailyRecords, archiveMaxDays)
                         cacheManager.writeLocalFileText(activeCsvFileName, reMerge.activeCsv)
                     }
@@ -127,13 +136,13 @@ class GoogleDriveDirectClient(private val context: Context) {
                     // Update the remote file in-place
                     fileId = remoteMeta.getString("id")
                     AppLogger.d("DRIVE", "Updating existing Google Drive file ID: $fileId...")
-                    val updatedMeta = updateRemoteFileMedia(accessToken, fileId, mergeResult.activeCsv, "text/csv")
+                    val updatedMeta = updateRemoteFileMedia(activeToken, fileId, mergeResult.activeCsv, "text/csv")
                     finalRemoteMd5 = updatedMeta.optString("md5Checksum", localActiveMd5)
                     AppLogger.s("DRIVE", "Successfully updated file $activeCsvFileName on Google Drive (ID: $fileId, MD5: $finalRemoteMd5)")
                 } else {
                     // File does not exist yet on Drive (or was deleted by user on Drive)
                     AppLogger.i("DRIVE", "Remote file $activeCsvFileName not found on Google Drive. Creating new file...")
-                    val created = createRemoteFile(accessToken, folderId, activeCsvFileName, mergeResult.activeCsv, "text/csv")
+                    val created = createRemoteFile(activeToken, folderId, activeCsvFileName, mergeResult.activeCsv, "text/csv")
                     fileId = created.getString("id")
                     finalRemoteMd5 = created.optString("md5Checksum", localActiveMd5)
                     AppLogger.s("DRIVE", "Successfully created file $activeCsvFileName on Google Drive (ID: $fileId, MD5: $finalRemoteMd5)")
@@ -143,11 +152,11 @@ class GoogleDriveDirectClient(private val context: Context) {
                 mergeResult.archiveCsvByYear.forEach { (year, archiveCsv) ->
                     val archiveName = "${fileName}_$year.csv"
                     AppLogger.d("DRIVE", "Checking archive file partition '$archiveName' on Drive...")
-                    val archiveMeta = queryRemoteFileMetadata(accessToken, folderId, archiveName)
+                    val archiveMeta = queryRemoteFileMetadata(activeToken, folderId, archiveName)
                     if (archiveMeta != null) {
-                        updateRemoteFileMedia(accessToken, archiveMeta.getString("id"), archiveCsv, "text/csv")
+                        updateRemoteFileMedia(activeToken, archiveMeta.getString("id"), archiveCsv, "text/csv")
                     } else {
-                        createRemoteFile(accessToken, folderId, archiveName, archiveCsv, "text/csv")
+                        createRemoteFile(activeToken, folderId, archiveName, archiveCsv, "text/csv")
                     }
                 }
 
@@ -171,7 +180,7 @@ class GoogleDriveDirectClient(private val context: Context) {
                     isLocalOnlyFallback = false
                 )
             } else {
-                // Connected account / companion BYOS mode (no manual bearer token required)
+                // NO ACCESS TOKEN PROVIDED
                 cacheManager.updateCachedFile(
                     fileName = activeCsvFileName,
                     fileId = "local_cache_${System.currentTimeMillis()}",
@@ -181,22 +190,32 @@ class GoogleDriveDirectClient(private val context: Context) {
                 )
 
                 val duration = System.currentTimeMillis() - startTime
-                AppLogger.s("DRIVE", "Biometrics sync completed: ${mergeResult.totalActiveRecords} records for $folderPath/$activeCsvFileName")
 
-                DirectDriveResult(
-                    isSuccess = true,
-                    httpCode = 200,
-                    message = if (isDemoMode) {
-                        "Demo Mode: Saved ${mergeResult.totalActiveRecords} record(s) locally on device."
-                    } else {
-                        "Successfully synced ${mergeResult.totalActiveRecords} record(s) to $folderPath/$activeCsvFileName"
-                    },
-                    durationMs = duration,
-                    bytesTransferred = bytesPayload,
-                    activeRecordsCount = mergeResult.totalActiveRecords,
-                    targetFolderUrl = "https://drive.google.com/drive/my-drive",
-                    isLocalOnlyFallback = false
-                )
+                if (isDemoMode) {
+                    AppLogger.i("DEMO", "Demo mode: Saved ${mergeResult.totalActiveRecords} records to local cache.")
+                    DirectDriveResult(
+                        isSuccess = true,
+                        httpCode = 200,
+                        message = "Demo Mode: Saved ${mergeResult.totalActiveRecords} record(s) locally on device.",
+                        durationMs = duration,
+                        bytesTransferred = bytesPayload,
+                        activeRecordsCount = mergeResult.totalActiveRecords,
+                        targetFolderUrl = null,
+                        isLocalOnlyFallback = true
+                    )
+                } else {
+                    AppLogger.w("DRIVE", "Google Drive export skipped: No Google Drive authorization token found. Saved locally only.")
+                    DirectDriveResult(
+                        isSuccess = false,
+                        httpCode = 401,
+                        message = "Google Drive authorization required. Please tap 'Authorize Google Drive' to upload CSV files.",
+                        durationMs = duration,
+                        bytesTransferred = bytesPayload,
+                        activeRecordsCount = mergeResult.totalActiveRecords,
+                        targetFolderUrl = null,
+                        isLocalOnlyFallback = true
+                    )
+                }
             }
         } catch (e: Exception) {
             val duration = System.currentTimeMillis() - startTime
@@ -247,22 +266,31 @@ class GoogleDriveDirectClient(private val context: Context) {
             val bytesPayload = mergeResult.activeCsv.toByteArray().size.toLong()
             AppLogger.d("CACHE", "Local workouts baseline prepared: ${mergeResult.totalActiveRecords} workouts, ${bytesPayload}B, MD5: $localActiveMd5")
 
-            if (!accessToken.isNullOrBlank()) {
+            var activeToken = accessToken
+            if (activeToken.isNullOrBlank()) {
+                try {
+                    activeToken = com.example.auth.GoogleAuthHelper.fetchDriveAccessToken(context)
+                } catch (e: Exception) {
+                    AppLogger.d("AUTH", "Automatic token fetch for workouts returned null: ${e.message}")
+                }
+            }
+
+            if (!activeToken.isNullOrBlank()) {
                 AppLogger.d("DRIVE", "Live Google Drive sync active for workouts. Resolving folder structure '$folderPath'...")
-                val folderId = resolveOrCreateFolderPath(accessToken, folderPath)
-                val remoteMeta = queryRemoteFileMetadata(accessToken, folderId, activeCsvFileName)
+                val folderId = resolveOrCreateFolderPath(activeToken, folderPath)
+                val remoteMeta = queryRemoteFileMetadata(activeToken, folderId, activeCsvFileName)
                 val fileId: String
                 val finalRemoteMd5: String
 
                 if (remoteMeta != null) {
                     fileId = remoteMeta.getString("id")
                     AppLogger.d("DRIVE", "Updating existing workouts file on Google Drive (ID: $fileId)...")
-                    val updatedMeta = updateRemoteFileMedia(accessToken, fileId, mergeResult.activeCsv, "text/csv")
+                    val updatedMeta = updateRemoteFileMedia(activeToken, fileId, mergeResult.activeCsv, "text/csv")
                     finalRemoteMd5 = updatedMeta.optString("md5Checksum", localActiveMd5)
                     AppLogger.s("DRIVE", "Successfully updated $activeCsvFileName on Google Drive (ID: $fileId, MD5: $finalRemoteMd5)")
                 } else {
                     AppLogger.i("DRIVE", "Workouts file $activeCsvFileName not found on Google Drive. Creating new file...")
-                    val created = createRemoteFile(accessToken, folderId, activeCsvFileName, mergeResult.activeCsv, "text/csv")
+                    val created = createRemoteFile(activeToken, folderId, activeCsvFileName, mergeResult.activeCsv, "text/csv")
                     fileId = created.getString("id")
                     finalRemoteMd5 = created.optString("md5Checksum", localActiveMd5)
                     AppLogger.s("DRIVE", "Successfully created $activeCsvFileName on Google Drive (ID: $fileId, MD5: $finalRemoteMd5)")
@@ -288,7 +316,6 @@ class GoogleDriveDirectClient(private val context: Context) {
                     isLocalOnlyFallback = false
                 )
             } else {
-                // Connected account / companion BYOS mode (no manual bearer token required)
                 cacheManager.updateCachedFile(
                     fileName = activeCsvFileName,
                     fileId = "local_cache_${System.currentTimeMillis()}",
@@ -298,22 +325,32 @@ class GoogleDriveDirectClient(private val context: Context) {
                 )
 
                 val duration = System.currentTimeMillis() - startTime
-                AppLogger.s("DRIVE", "Workouts sync completed: ${mergeResult.totalActiveRecords} workouts for $folderPath/$activeCsvFileName")
 
-                DirectDriveResult(
-                    isSuccess = true,
-                    httpCode = 200,
-                    message = if (isDemoMode) {
-                        "Demo Mode: Saved ${mergeResult.totalActiveRecords} workout(s) locally on device."
-                    } else {
-                        "Successfully synced ${mergeResult.totalActiveRecords} workout(s) to $folderPath/$activeCsvFileName"
-                    },
-                    durationMs = duration,
-                    bytesTransferred = bytesPayload,
-                    activeRecordsCount = mergeResult.totalActiveRecords,
-                    targetFolderUrl = "https://drive.google.com/drive/my-drive",
-                    isLocalOnlyFallback = false
-                )
+                if (isDemoMode) {
+                    AppLogger.i("DEMO", "Demo mode: Saved ${mergeResult.totalActiveRecords} workouts to local cache.")
+                    DirectDriveResult(
+                        isSuccess = true,
+                        httpCode = 200,
+                        message = "Demo Mode: Saved ${mergeResult.totalActiveRecords} workout(s) locally on device.",
+                        durationMs = duration,
+                        bytesTransferred = bytesPayload,
+                        activeRecordsCount = mergeResult.totalActiveRecords,
+                        targetFolderUrl = null,
+                        isLocalOnlyFallback = true
+                    )
+                } else {
+                    AppLogger.w("DRIVE", "Workout export skipped: No Google Drive authorization token found. Saved locally only.")
+                    DirectDriveResult(
+                        isSuccess = false,
+                        httpCode = 401,
+                        message = "Google Drive authorization required. Please tap 'Authorize Google Drive' to upload CSV files.",
+                        durationMs = duration,
+                        bytesTransferred = bytesPayload,
+                        activeRecordsCount = mergeResult.totalActiveRecords,
+                        targetFolderUrl = null,
+                        isLocalOnlyFallback = true
+                    )
+                }
             }
         } catch (e: Exception) {
             val duration = System.currentTimeMillis() - startTime
@@ -338,24 +375,22 @@ class GoogleDriveDirectClient(private val context: Context) {
         val startTime = System.currentTimeMillis()
         AppLogger.i("DRIVE", "Testing Google Drive connection for folder '$folderPath' (Email: $userEmail)...")
 
-        if (accessToken.isNullOrBlank()) {
-            val duration = System.currentTimeMillis() - startTime
-            if (!userEmail.isNullOrBlank()) {
-                AppLogger.s("DRIVE", "Drive connection verified for connected account $userEmail ($folderPath)")
-                return@withContext DirectDriveResult(
-                    isSuccess = true,
-                    httpCode = 200,
-                    message = "Connected to Google Account ($userEmail). Target folder: $folderPath",
-                    durationMs = duration,
-                    targetFolderUrl = "https://drive.google.com/drive/my-drive",
-                    userEmail = userEmail
-                )
+        var validToken = accessToken
+        if (validToken.isNullOrBlank()) {
+            try {
+                validToken = com.example.auth.GoogleAuthHelper.fetchDriveAccessToken(context, userEmail)
+            } catch (e: Exception) {
+                AppLogger.d("AUTH", "Automatic token fetch in test returned: ${e.message}")
             }
-            AppLogger.w("DRIVE", "Drive connection test: No account connected.")
+        }
+
+        if (validToken.isNullOrBlank()) {
+            val duration = System.currentTimeMillis() - startTime
+            AppLogger.w("DRIVE", "Drive connection test: Google Drive is not authorized yet.")
             return@withContext DirectDriveResult(
                 isSuccess = false,
                 httpCode = 401,
-                message = "No Google account connected. Please connect your Google account.",
+                message = "Google Drive authorization required. Please tap 'Authorize Google Drive' to connect.",
                 durationMs = duration
             )
         }
@@ -364,7 +399,7 @@ class GoogleDriveDirectClient(private val context: Context) {
             // 1. Verify token by querying user identity
             val aboutReq = Request.Builder()
                 .url("$DRIVE_API_BASE/about?fields=user(displayName,emailAddress)")
-                .addHeader("Authorization", "Bearer $accessToken")
+                .addHeader("Authorization", "Bearer $validToken")
                 .get()
                 .build()
 
@@ -372,12 +407,15 @@ class GoogleDriveDirectClient(private val context: Context) {
             val aboutBody = aboutResp.body?.string() ?: ""
 
             if (!aboutResp.isSuccessful) {
+                if (aboutResp.code == 401) {
+                    com.example.auth.GoogleAuthHelper.clearToken(context, validToken)
+                }
                 val duration = System.currentTimeMillis() - startTime
                 AppLogger.e("DRIVE", "Drive token verification failed: HTTP ${aboutResp.code} $aboutBody")
                 return@withContext DirectDriveResult(
                     isSuccess = false,
                     httpCode = aboutResp.code,
-                    message = "Google Drive authorization failed (HTTP ${aboutResp.code}). Token may be expired or invalid.",
+                    message = "Google Drive authorization failed (HTTP ${aboutResp.code}). Please re-authorize Google Drive.",
                     durationMs = duration
                 )
             }
@@ -388,7 +426,7 @@ class GoogleDriveDirectClient(private val context: Context) {
             val name = userObj?.optString("displayName", "") ?: ""
 
             // 2. Resolve or verify folder
-            val folderId = resolveOrCreateFolderPath(accessToken, folderPath)
+            val folderId = resolveOrCreateFolderPath(validToken, folderPath)
             val duration = System.currentTimeMillis() - startTime
 
             val displayIdentity = if (name.isNotBlank()) "$name ($email)" else email

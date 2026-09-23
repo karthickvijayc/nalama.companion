@@ -56,6 +56,38 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val googleSignInLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
+            viewModel.onGoogleAccountConnected(account)
+            Toast.makeText(this, "Signed in as ${account.email}", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            com.example.util.AppLogger.e("AUTH", "Google Sign-In failed or cancelled: ${e.message}")
+            if (result.resultCode != RESULT_CANCELED) {
+                Toast.makeText(this, "Google Sign-In failed: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private val driveConsentLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            viewModel.refreshGoogleDriveToken()
+            Toast.makeText(this, "Google Drive authorization granted!", Toast.LENGTH_SHORT).show()
+        } else {
+            com.example.util.AppLogger.w("AUTH", "Drive consent not granted or dismissed: ${result.resultCode}")
+        }
+    }
+
+    private fun launchGoogleSignIn() {
+        val client = com.example.auth.GoogleAuthHelper.getClient(this)
+        googleSignInLauncher.launch(client.signInIntent)
+    }
+
     private val requestPermissions: () -> Unit = {
         healthPermissionLauncher.launch(HealthConnectManager.PERMISSIONS)
     }
@@ -71,6 +103,15 @@ class MainActivity : ComponentActivity() {
                 val history by viewModel.history.collectAsState()
                 val diagnosticLogs by viewModel.diagnosticLogs.collectAsState()
 
+                LaunchedEffect(Unit) {
+                    viewModel.userConsentIntentEvent.collect { consentIntent ->
+                        if (consentIntent != null) {
+                            driveConsentLauncher.launch(consentIntent)
+                            viewModel.consumeUserConsentIntent()
+                        }
+                    }
+                }
+
                 when (uiState.currentScreen) {
                     AppScreen.SPLASH -> {
                         SplashScreen(
@@ -81,6 +122,7 @@ class MainActivity : ComponentActivity() {
                     AppScreen.LANDING -> {
                         LandingScreen(
                             settings = uiState.settings,
+                            onRequestGoogleSignIn = { launchGoogleSignIn() },
                             onSignInWithGoogle = { email, name ->
                                 viewModel.connectGoogleAccount(email, name)
                                 Toast.makeText(this@MainActivity, "Connected Google Account: $email", Toast.LENGTH_SHORT).show()
@@ -222,6 +264,7 @@ class MainActivity : ComponentActivity() {
                                 0 -> DashboardScreen(
                                     uiState = uiState,
                                     onRequestHealthPermissions = requestPermissions,
+                                    onRequestGoogleSignIn = { launchGoogleSignIn() },
                                     onSelectSourceApp = { viewModel.updateSourceApp(it) },
                                     onWriteModeSelected = { viewModel.updateWriteMode(it) },
                                     onFolderSelected = { viewModel.updateTargetFolder(it) },
@@ -251,6 +294,7 @@ class MainActivity : ComponentActivity() {
                                     onUpdateTimezone = { viewModel.updateTimezone(it) },
                                     onToggleDemoMode = { viewModel.toggleDemoMode(it) },
                                     onRequestHealthPermissions = requestPermissions,
+                                    onRequestGoogleSignIn = { launchGoogleSignIn() },
                                     onOpenHealthConnectSettings = {
                                         try {
                                             startActivity(viewModel.getHealthConnectSettingsIntent())

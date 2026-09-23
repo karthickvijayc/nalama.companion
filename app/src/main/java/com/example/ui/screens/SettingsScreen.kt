@@ -32,6 +32,7 @@ fun SettingsScreen(
     onUpdateTimezone: (String) -> Unit,
     onToggleDemoMode: (Boolean) -> Unit,
     onRequestHealthPermissions: () -> Unit,
+    onRequestGoogleSignIn: () -> Unit = {},
     onOpenHealthConnectSettings: () -> Unit = {},
     onNavigateToLanding: () -> Unit = {},
     onDisconnectGoogle: () -> Unit = {},
@@ -115,36 +116,87 @@ fun SettingsScreen(
             }
 
             if (uiState.settings.isGoogleConnected) {
-                // Connected Google Drive Status Pill
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFFE6F4EA),
-                    border = BorderStroke(1.dp, Color(0xFFCEEAD6)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                if (hasDriveToken || uiState.settings.demoModeEnabled) {
+                    // Connected Google Drive Status Pill
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFE6F4EA),
+                        border = BorderStroke(1.dp, Color(0xFFCEEAD6)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = Color(0xFF137333),
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Google Drive Sync Active (BYOS)",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                color = Color(0xFF137333)
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = Color(0xFF137333),
+                                modifier = Modifier.size(18.dp)
                             )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Google Drive Sync Active (BYOS)",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF137333)
+                                )
+                                Text(
+                                    text = "100% Private. Files sync directly to your personal Google account (${uiState.settings.connectedEmail}).",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF137333)
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // Authorization Required Warning Box
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFFEF7E0),
+                        border = BorderStroke(1.dp, Color(0xFFFEEFC3)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = Color(0xFFB06000),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "Google Drive Permission Required",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFB06000)
+                                )
+                            }
                             Text(
-                                text = "100% Private. Files sync directly to your personal Google account (${uiState.settings.connectedEmail}).",
-                                fontSize = 11.sp,
-                                color = Color(0xFF137333)
+                                text = "Your Google account is linked (${uiState.settings.connectedEmail}), but Drive storage access needs to be authorized so files can be created in your Drive.",
+                                fontSize = 11.5.sp,
+                                color = Color(0xFF5F6368)
                             )
+                            Button(
+                                onClick = onRequestGoogleSignIn,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth().testTag("settings_authorize_drive_button")
+                            ) {
+                                Icon(Icons.Default.CloudQueue, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Authorize Google Drive", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
                         }
                     }
                 }

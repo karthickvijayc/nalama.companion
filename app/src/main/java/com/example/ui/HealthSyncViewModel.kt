@@ -87,8 +87,80 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
     private val _uiState = MutableStateFlow(HealthSyncUiState())
     val uiState: StateFlow<HealthSyncUiState> = _uiState.asStateFlow()
 
+    private val _userConsentIntentEvent = MutableStateFlow<android.content.Intent?>(null)
+    val userConsentIntentEvent: StateFlow<android.content.Intent?> = _userConsentIntentEvent.asStateFlow()
+
+    fun consumeUserConsentIntent() {
+        _userConsentIntentEvent.value = null
+    }
+
     val history: StateFlow<List<ExportHistoryItem>> = historyStore.history
     val diagnosticLogs: StateFlow<List<LogEntry>> = AppLogger.logs
+
+    suspend fun resolveOrFetchDriveAccessToken(): String? {
+        val settings = prefs.settings.value
+        var currentToken = settings.googleOAuthAccessToken
+        if (currentToken.isNotBlank()) return currentToken
+
+        if (settings.connectedEmail.isNotBlank()) {
+            try {
+                val fetched = com.example.auth.GoogleAuthHelper.fetchDriveAccessToken(getApplication(), settings.connectedEmail)
+                if (!fetched.isNullOrBlank()) {
+                    prefs.updateGoogleOAuthAccessToken(fetched)
+                    AppLogger.s("AUTH", "Google Drive authorized automatically for ${settings.connectedEmail}")
+                    return fetched
+                }
+            } catch (recoverable: com.google.android.gms.auth.UserRecoverableAuthException) {
+                AppLogger.w("AUTH", "User consent required for Google Drive on ${settings.connectedEmail}")
+                _userConsentIntentEvent.value = recoverable.intent
+            } catch (e: Exception) {
+                AppLogger.d("AUTH", "Auto token fetch note: ${e.message}")
+            }
+        }
+        return null
+    }
+
+    fun onGoogleAccountConnected(account: com.google.android.gms.auth.api.signin.GoogleSignInAccount) {
+        val email = account.email ?: ""
+        val name = account.displayName ?: ""
+        prefs.connectGoogleAccount(email, name)
+        _uiState.update { it.copy(currentScreen = AppScreen.MAIN) }
+
+        viewModelScope.launch {
+            try {
+                val token = com.example.auth.GoogleAuthHelper.fetchDriveAccessToken(getApplication(), email)
+                if (!token.isNullOrBlank()) {
+                    prefs.updateGoogleOAuthAccessToken(token, email, name)
+                    AppLogger.s("AUTH", "Google Drive authorized for $email")
+                } else {
+                    AppLogger.w("AUTH", "Signed in as $email. Drive permission consent pending.")
+                }
+            } catch (recoverable: com.google.android.gms.auth.UserRecoverableAuthException) {
+                AppLogger.i("AUTH", "Drive consent intent available for $email")
+                _userConsentIntentEvent.value = recoverable.intent
+            } catch (e: Exception) {
+                AppLogger.e("AUTH", "Failed to retrieve initial Drive token: ${e.message}")
+            }
+        }
+    }
+
+    fun refreshGoogleDriveToken() {
+        viewModelScope.launch {
+            val email = prefs.settings.value.connectedEmail
+            if (email.isBlank()) return@launch
+            try {
+                val token = com.example.auth.GoogleAuthHelper.fetchDriveAccessToken(getApplication(), email)
+                if (!token.isNullOrBlank()) {
+                    prefs.updateGoogleOAuthAccessToken(token, email, prefs.settings.value.connectedDisplayName)
+                    AppLogger.s("AUTH", "Google Drive token refreshed successfully.")
+                }
+            } catch (recoverable: com.google.android.gms.auth.UserRecoverableAuthException) {
+                _userConsentIntentEvent.value = recoverable.intent
+            } catch (e: Exception) {
+                AppLogger.e("AUTH", "Error refreshing Drive token: ${e.message}")
+            }
+        }
+    }
 
     init {
         viewModelScope.launch {
@@ -215,6 +287,19 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
 
             AppLogger.i("UI", "Manual export triggered for ${settings.sourceApp.displayName}")
 
+            val activeToken = if (settings.demoModeEnabled) null else resolveOrFetchDriveAccessToken()
+            if (!settings.demoModeEnabled && activeToken.isNullOrBlank()) {
+                val errorMsg = "Google Drive authorization required. Please tap 'Authorize Google Drive' to link your Google account."
+                AppLogger.w("DRIVE", errorMsg)
+                val errorResult = SyncResult(
+                    isSuccess = false,
+                    message = errorMsg,
+                    isLocalOnlyFallback = true
+                )
+                _uiState.update { it.copy(isExporting = false, lastExportResult = errorResult) }
+                return@launch
+            }
+
             if (settings.sourceApp == SyncSourceApp.HEVY) {
                 val fetchResult = hevyManager.fetchWorkouts(
                     apiKey = settings.hevyApiKey,
@@ -242,7 +327,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                 val workoutsPayload = payload.copy(syncedAt = now.format(DateTimeFormatter.ISO_INSTANT))
 
                 val direct = driveClient.syncWorkoutsDirectly(
-                    accessToken = settings.googleOAuthAccessToken.ifBlank { null },
+                    accessToken = activeToken,
                     payload = workoutsPayload,
                     folderPath = folderPath,
                     targetSubfolder = subfolder,
@@ -332,7 +417,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                 )
 
                 val direct = driveClient.syncBiometricsDirectly(
-                    accessToken = settings.googleOAuthAccessToken.ifBlank { null },
+                    accessToken = activeToken,
                     payload = payload,
                     folderPath = folderPath,
                     targetSubfolder = subfolder,
@@ -397,9 +482,10 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
             _uiState.update { it.copy(isTestingDrive = true, testDriveResult = null) }
             val settings = prefs.settings.value
             val folderPath = settings.customFolderPath.ifBlank { settings.targetFolder.folderPath }
+            val activeToken = resolveOrFetchDriveAccessToken()
 
             val direct = driveClient.testDirectDriveConnection(
-                accessToken = settings.googleOAuthAccessToken.ifBlank { null },
+                accessToken = activeToken,
                 folderPath = folderPath,
                 userEmail = settings.connectedEmail.ifBlank { null }
             )
@@ -569,6 +655,19 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
 
     fun onSplashFinished() {
         val settings = prefs.settings.value
+        if (settings.connectedEmail.isNotBlank() && settings.googleOAuthAccessToken.isBlank()) {
+            viewModelScope.launch {
+                try {
+                    val token = com.example.auth.GoogleAuthHelper.fetchDriveAccessToken(getApplication(), settings.connectedEmail)
+                    if (!token.isNullOrBlank()) {
+                        prefs.updateGoogleOAuthAccessToken(token)
+                        AppLogger.s("AUTH", "Restored Google Drive token on app start for ${settings.connectedEmail}")
+                    }
+                } catch (e: Exception) {
+                    AppLogger.d("AUTH", "Silent token restore check: ${e.message}")
+                }
+            }
+        }
         if (settings.hasCompletedOnboarding || settings.isGoogleConnected || settings.demoModeEnabled) {
             _uiState.update { it.copy(currentScreen = AppScreen.MAIN) }
         } else {
@@ -606,6 +705,21 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
             val defaultFileName = settings.targetFolder.defaultFileName
 
             AppLogger.i("BULK", "Bulk export initiated for ${settings.sourceApp.displayName}, historyDays: $historyDays")
+
+            val activeToken = if (settings.demoModeEnabled) null else resolveOrFetchDriveAccessToken()
+            if (!settings.demoModeEnabled && activeToken.isNullOrBlank()) {
+                val errorMsg = "Google Drive authorization required. Please tap 'Authorize Google Drive' to link your Google account."
+                AppLogger.w("BULK", errorMsg)
+                _uiState.update {
+                    it.copy(
+                        bulkExportState = BulkExportState(
+                            isRunning = false,
+                            error = errorMsg
+                        )
+                    )
+                }
+                return@launch
+            }
 
             _uiState.update {
                 it.copy(
@@ -697,7 +811,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     )
 
                     val direct = driveClient.syncWorkoutsDirectly(
-                        accessToken = settings.googleOAuthAccessToken.ifBlank { null },
+                        accessToken = activeToken,
                         payload = payload,
                         folderPath = folderPath,
                         targetSubfolder = subfolder,
@@ -841,7 +955,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     )
 
                     val direct = driveClient.syncBiometricsDirectly(
-                        accessToken = settings.googleOAuthAccessToken.ifBlank { null },
+                        accessToken = activeToken,
                         payload = payload,
                         folderPath = folderPath,
                         targetSubfolder = subfolder,

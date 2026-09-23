@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,6 +28,7 @@ import com.example.ui.components.*
 fun DashboardScreen(
     uiState: HealthSyncUiState,
     onRequestHealthPermissions: () -> Unit,
+    onRequestGoogleSignIn: () -> Unit = {},
     onSelectSourceApp: (SyncSourceApp) -> Unit,
     onWriteModeSelected: (WriteMode) -> Unit,
     onFolderSelected: (TargetFolder) -> Unit,
@@ -40,6 +42,8 @@ fun DashboardScreen(
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
+    val hasDriveToken = uiState.settings.googleOAuthAccessToken.isNotBlank()
+    val isDriveGood = uiState.settings.demoModeEnabled || hasDriveToken
 
     Column(
         modifier = modifier
@@ -86,14 +90,15 @@ fun DashboardScreen(
             )
 
             // Destination Status (Google Drive)
-            val isDriveConnected = uiState.settings.isGoogleConnected
             StatusBadge(
                 modifier = Modifier.weight(1f),
                 label = "Google Drive",
-                status = if (isDriveConnected) "Connected" else "Not Linked",
-                icon = if (isDriveConnected) Icons.Default.CloudDone else Icons.Default.CloudOff,
-                isGood = isDriveConnected,
-                onClick = onOpenScheduleSettings
+                status = if (uiState.settings.demoModeEnabled) "Demo Mode" else if (hasDriveToken) "Connected" else if (uiState.settings.isGoogleConnected) "Auth Needed" else "Not Linked",
+                icon = if (isDriveGood) Icons.Default.CloudDone else Icons.Default.CloudOff,
+                isGood = isDriveGood,
+                onClick = {
+                    if (!isDriveGood) onRequestGoogleSignIn() else onOpenScheduleSettings()
+                }
             )
 
             // Schedule Status
@@ -105,6 +110,48 @@ fun DashboardScreen(
                 isGood = uiState.settings.autoSyncEnabled,
                 onClick = onOpenScheduleSettings
             )
+        }
+
+        // Google Drive Authorization Banner if connected account lacks token
+        if (!uiState.settings.demoModeEnabled && !hasDriveToken) {
+            Surface(
+                color = Color(0xFFFEF7E0),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFEEFC3)),
+                modifier = Modifier.fillMaxWidth().testTag("dashboard_drive_auth_banner")
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Google Drive Authorization Needed",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFB06000)
+                        )
+                        Text(
+                            text = "Tap to grant Nalama permission to save files to your Google Drive account (${uiState.settings.connectedEmail.ifBlank { "Personal Drive" }}).",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF5F6368)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Button(
+                        onClick = onRequestGoogleSignIn,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        modifier = Modifier.testTag("dashboard_authorize_drive_button")
+                    ) {
+                        Text("Authorize", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
         }
 
         // Health Permissions notice if needed (only when Health Connect is selected)

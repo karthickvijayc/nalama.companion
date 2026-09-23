@@ -36,6 +36,7 @@ import com.example.data.AppSettings
 @Composable
 fun LandingScreen(
     settings: AppSettings,
+    onRequestGoogleSignIn: () -> Unit = {},
     onSignInWithGoogle: (email: String, displayName: String) -> Unit,
     onSelectLanguage: (String) -> Unit = {},
     onTryOfflineDemo: () -> Unit,
@@ -190,7 +191,7 @@ fun LandingScreen(
                             .fillMaxWidth()
                             .height(54.dp)
                             .clip(RoundedCornerShape(16.dp))
-                            .clickable { showGoogleSignInDialog = true }
+                            .clickable { onRequestGoogleSignIn() }
                             .testTag("google_sign_in_button")
                     ) {
                         Row(
@@ -213,7 +214,20 @@ fun LandingScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    TextButton(
+                        onClick = { showGoogleSignInDialog = true },
+                        modifier = Modifier.testTag("manual_account_config_button")
+                    ) {
+                        Text(
+                            text = "Or enter account manually",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // Expandable Permission Notice
                     Column(
