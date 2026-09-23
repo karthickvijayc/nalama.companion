@@ -126,9 +126,9 @@ class MainActivity : ComponentActivity() {
                                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                                 ) {
                                                     Text(
-                                                        text = "Health Data Companion",
+                                                        text = "Nalama Health Data Companion",
                                                         fontWeight = FontWeight.Bold,
-                                                        fontSize = 16.sp,
+                                                        fontSize = 15.sp,
                                                         color = MaterialTheme.colorScheme.primary
                                                     )
                                                     Text(

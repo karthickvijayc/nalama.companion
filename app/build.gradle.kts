@@ -14,11 +14,13 @@ android {
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.nalamahealthsync.kcvyzc"
+    applicationId = "com.aistudio.nalama.healthdatacompanion"
     minSdk = 26
     targetSdk = 36
     versionCode = 1
     versionName = "1.0.0"
+
+    buildConfigField("String", "GOOGLE_OAUTH_CLIENT_ID", "\"761288817669-6dqbjl0gt69aetb44uvldl0hne3q2a2l.apps.googleusercontent.com\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

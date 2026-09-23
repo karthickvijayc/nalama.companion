@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Health Data Companion for Nalama"
+rootProject.name = "Nalama Health Data Companion App"
 
 include(":app")
