@@ -678,6 +678,23 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
     fun connectGoogleAccount(email: String, displayName: String = "") {
         prefs.connectGoogleAccount(email, displayName)
         _uiState.update { it.copy(currentScreen = AppScreen.MAIN) }
+
+        viewModelScope.launch {
+            try {
+                val token = com.example.auth.GoogleAuthHelper.fetchDriveAccessToken(getApplication(), email)
+                if (!token.isNullOrBlank()) {
+                    prefs.updateGoogleOAuthAccessToken(token, email, displayName)
+                    AppLogger.s("AUTH", "Google Drive authorized automatically for $email")
+                } else {
+                    AppLogger.w("AUTH", "Signed in as $email. Drive permission consent pending.")
+                }
+            } catch (recoverable: com.google.android.gms.auth.UserRecoverableAuthException) {
+                AppLogger.i("AUTH", "Drive consent intent available for $email")
+                _userConsentIntentEvent.value = recoverable.intent
+            } catch (e: Exception) {
+                AppLogger.e("AUTH", "Failed to retrieve initial Drive token: ${e.message}")
+            }
+        }
     }
 
     fun enterDemoModeFromLanding() {

@@ -28,7 +28,6 @@ object GoogleAuthHelper {
         return GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
             .requestProfile()
-            .requestScopes(Scope(DRIVE_FILE_SCOPE))
             .build()
     }
 

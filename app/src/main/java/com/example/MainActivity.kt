@@ -56,18 +56,60 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val accountPickerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val selectedEmail = result.data?.getStringExtra(android.accounts.AccountManager.KEY_ACCOUNT_NAME)
+            ?: result.data?.getStringExtra("authAccount")
+
+        if (!selectedEmail.isNullOrBlank()) {
+            val name = selectedEmail.substringBefore("@")
+                .split(".", "_", "-")
+                .filter { it.isNotBlank() }
+                .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+            viewModel.connectGoogleAccount(selectedEmail, name)
+            Toast.makeText(this, "Signed in as $selectedEmail", Toast.LENGTH_SHORT).show()
+            com.example.util.AppLogger.s("AUTH", "Account chosen via system AccountPicker: $selectedEmail")
+        } else if (result.data != null) {
+            val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            try {
+                val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
+                viewModel.onGoogleAccountConnected(account)
+                Toast.makeText(this, "Signed in as ${account.email}", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                com.example.util.AppLogger.d("AUTH", "Account picker result note: ${e.message}")
+            }
+        }
+    }
+
     private val googleSignInLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        val fallbackEmail = result.data?.getStringExtra(android.accounts.AccountManager.KEY_ACCOUNT_NAME)
+            ?: result.data?.getStringExtra("authAccount")
+
         val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(result.data)
         try {
             val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
             viewModel.onGoogleAccountConnected(account)
             Toast.makeText(this, "Signed in as ${account.email}", Toast.LENGTH_SHORT).show()
+        } catch (e: com.google.android.gms.common.api.ApiException) {
+            com.example.util.AppLogger.e("AUTH", "Google Sign-In failed: code=${e.statusCode} ${e.message}")
+            if (!fallbackEmail.isNullOrBlank()) {
+                val name = fallbackEmail.substringBefore("@")
+                    .split(".", "_", "-")
+                    .filter { it.isNotBlank() }
+                    .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+                viewModel.connectGoogleAccount(fallbackEmail, name)
+                Toast.makeText(this, "Signed in as $fallbackEmail", Toast.LENGTH_SHORT).show()
+            } else if (result.resultCode != RESULT_CANCELED) {
+                Toast.makeText(this, "Google Sign-In failed (${e.statusCode}): ${e.message}", Toast.LENGTH_LONG).show()
+            }
         } catch (e: Exception) {
-            com.example.util.AppLogger.e("AUTH", "Google Sign-In failed or cancelled: ${e.message}")
-            if (result.resultCode != RESULT_CANCELED) {
-                Toast.makeText(this, "Google Sign-In failed: ${e.message}", Toast.LENGTH_LONG).show()
+            com.example.util.AppLogger.e("AUTH", "Google Sign-In error: ${e.message}")
+            if (!fallbackEmail.isNullOrBlank()) {
+                viewModel.connectGoogleAccount(fallbackEmail, fallbackEmail.substringBefore("@"))
+                Toast.makeText(this, "Signed in as $fallbackEmail", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -84,8 +126,34 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun launchGoogleSignIn() {
-        val client = com.example.auth.GoogleAuthHelper.getClient(this)
-        googleSignInLauncher.launch(client.signInIntent)
+        try {
+            val intent = com.google.android.gms.common.AccountPicker.newChooseAccountIntent(
+                com.google.android.gms.common.AccountPicker.AccountChooserOptions.Builder()
+                    .setAllowableAccountsTypes(listOf("com.google"))
+                    .build()
+            )
+            accountPickerLauncher.launch(intent)
+        } catch (e: Exception) {
+            com.example.util.AppLogger.w("AUTH", "AccountPicker fallback to AccountManager: ${e.message}")
+            try {
+                @Suppress("DEPRECATION")
+                val intent = android.accounts.AccountManager.newChooseAccountIntent(
+                    null,
+                    null,
+                    arrayOf("com.google"),
+                    false,
+                    null,
+                    null,
+                    null,
+                    null
+                )
+                accountPickerLauncher.launch(intent)
+            } catch (e2: Exception) {
+                com.example.util.AppLogger.e("AUTH", "Fallback to GoogleSignInClient: ${e2.message}")
+                val client = com.example.auth.GoogleAuthHelper.getClient(this)
+                googleSignInLauncher.launch(client.signInIntent)
+            }
+        }
     }
 
     private val requestPermissions: () -> Unit = {
