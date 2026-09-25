@@ -80,8 +80,9 @@ class PreferencesManager(context: Context) {
 
     fun updateGoogleOAuthAccessToken(token: String, email: String? = null, displayName: String? = null) {
         val trimmedToken = token.trim()
+        val currentEmail = email?.trim() ?: _settings.value.connectedEmail
+        val isConnected = currentEmail.isNotBlank() || trimmedToken.isNotBlank() || _settings.value.isGoogleConnected
         val editor = prefs.edit().putString(KEY_GOOGLE_OAUTH_ACCESS_TOKEN, trimmedToken)
-        val isConnected = trimmedToken.isNotBlank()
         editor.putBoolean(KEY_GOOGLE_CONNECTED, isConnected)
         if (isConnected) {
             editor.putBoolean(KEY_HAS_COMPLETED_ONBOARDING, true)

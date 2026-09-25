@@ -333,6 +333,7 @@ class MainActivity : ComponentActivity() {
                                     uiState = uiState,
                                     onRequestHealthPermissions = requestPermissions,
                                     onRequestGoogleSignIn = { launchGoogleSignIn() },
+                                    onAuthorizeDrive = { viewModel.refreshGoogleDriveToken() },
                                     onSelectSourceApp = { viewModel.updateSourceApp(it) },
                                     onWriteModeSelected = { viewModel.updateWriteMode(it) },
                                     onFolderSelected = { viewModel.updateTargetFolder(it) },
@@ -363,6 +364,9 @@ class MainActivity : ComponentActivity() {
                                     onToggleDemoMode = { viewModel.toggleDemoMode(it) },
                                     onRequestHealthPermissions = requestPermissions,
                                     onRequestGoogleSignIn = { launchGoogleSignIn() },
+                                    onAuthorizeDrive = { viewModel.refreshGoogleDriveToken() },
+                                    onVerifyAndSaveOAuthToken = { token, cb -> viewModel.verifyAndSaveGoogleOAuthToken(token, cb) },
+                                    onClearAuthError = { viewModel.clearAuthError() },
                                     onOpenHealthConnectSettings = {
                                         try {
                                             startActivity(viewModel.getHealthConnectSettingsIntent())

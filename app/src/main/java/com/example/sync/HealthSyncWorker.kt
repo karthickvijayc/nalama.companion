@@ -49,6 +49,21 @@ class HealthSyncWorker(
         val defaultFileName = settings.targetFolder.defaultFileName
         val driveClient = GoogleDriveDirectClient(context)
 
+        val userEmail = settings.connectedEmail.ifBlank { null }
+        var activeToken = settings.googleOAuthAccessToken.ifBlank { null }
+        if (activeToken.isNullOrBlank() && !userEmail.isNullOrBlank()) {
+            try {
+                val fetched = com.example.auth.GoogleAuthHelper.fetchDriveAccessToken(context, userEmail)
+                if (!fetched.isNullOrBlank()) {
+                    prefs.updateGoogleOAuthAccessToken(fetched)
+                    activeToken = fetched
+                    AppLogger.s("WORKER", "Successfully fetched fresh Drive token for $userEmail")
+                }
+            } catch (e: Exception) {
+                AppLogger.d("WORKER", "Could not pre-fetch Drive token in worker: ${e.message}")
+            }
+        }
+
         if (settings.sourceApp == SyncSourceApp.HEVY) {
             val hevyManager = HevySyncManager()
             val fetchResult = hevyManager.fetchWorkouts(
@@ -65,14 +80,15 @@ class HealthSyncWorker(
             }
 
             val directResult = driveClient.syncWorkoutsDirectly(
-                accessToken = settings.googleOAuthAccessToken.ifBlank { null },
+                accessToken = activeToken,
                 payload = workoutsPayload,
                 folderPath = folderPath,
                 targetSubfolder = subfolder,
                 fileName = defaultFileName,
                 writeMode = settings.writeMode,
                 archiveMaxDays = settings.archiveMaxDays,
-                isDemoMode = settings.demoModeEnabled
+                isDemoMode = settings.demoModeEnabled,
+                userEmail = userEmail
             )
 
             val csvPreview = WorkoutCsvConverter.toCsvString(workoutsPayload.workouts, settings.writeMode == WriteMode.OVERWRITE)
@@ -139,14 +155,15 @@ class HealthSyncWorker(
             )
 
             val directResult = driveClient.syncBiometricsDirectly(
-                accessToken = settings.googleOAuthAccessToken.ifBlank { null },
+                accessToken = activeToken,
                 payload = exportPayload,
                 folderPath = folderPath,
                 targetSubfolder = subfolder,
                 fileName = defaultFileName,
                 writeMode = settings.writeMode,
                 archiveMaxDays = settings.archiveMaxDays,
-                isDemoMode = settings.demoModeEnabled
+                isDemoMode = settings.demoModeEnabled,
+                userEmail = userEmail
             )
 
             val csvPreview = CsvConverter.toCsvString(exportPayload.dailyRecords, settings.writeMode == WriteMode.OVERWRITE)

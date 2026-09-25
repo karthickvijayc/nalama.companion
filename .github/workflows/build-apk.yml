@@ -31,10 +31,18 @@ jobs:
         run: |
           touch .env
           touch local.properties
-          if [ ! -f debug.keystore ]; then
+          if [ -n "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" ]; then
+            echo "Restoring debug.keystore from GitHub Secret DEBUG_KEYSTORE_BASE64..."
+            echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > debug.keystore
+          elif [ ! -f debug.keystore ]; then
             echo "Generating debug.keystore for CI..."
             keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
+          echo "================================================================"
+          echo "GOOGLE CLOUD CONSOLE ANDROID OAUTH 2.0 CLIENT CONFIGURATION:"
+          echo "Package Name: com.aistudio.nalama.healthdatacompanion"
+          keytool -list -v -keystore debug.keystore -alias androiddebugkey -storepass android | grep -E "SHA1:|SHA256:"
+          echo "================================================================"
 
       - name: Grant Execute Permission for Gradlew
         run: chmod +x ./gradlew

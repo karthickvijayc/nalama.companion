@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -12,12 +13,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.SyncSourceApp
 import com.example.ui.HealthSyncUiState
+import com.example.util.CertificateHelper
 
 @Composable
 fun SettingsScreen(
@@ -33,6 +39,9 @@ fun SettingsScreen(
     onToggleDemoMode: (Boolean) -> Unit,
     onRequestHealthPermissions: () -> Unit,
     onRequestGoogleSignIn: () -> Unit = {},
+    onAuthorizeDrive: () -> Unit = {},
+    onVerifyAndSaveOAuthToken: (String, (Boolean, String) -> Unit) -> Unit = { _, _ -> },
+    onClearAuthError: () -> Unit = {},
     onOpenHealthConnectSettings: () -> Unit = {},
     onNavigateToLanding: () -> Unit = {},
     onDisconnectGoogle: () -> Unit = {},
@@ -44,6 +53,13 @@ fun SettingsScreen(
     var hevyApiKeyInput by remember(uiState.settings.hevyApiKey) { mutableStateOf(uiState.settings.hevyApiKey) }
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
     val hasDriveToken = uiState.settings.googleOAuthAccessToken.isNotBlank()
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+
+    var showManualTokenDialog by remember { mutableStateOf(false) }
+    var manualTokenInput by remember { mutableStateOf("") }
+    var manualTokenVerifying by remember { mutableStateOf(false) }
+    var manualTokenFeedback by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = modifier
@@ -184,18 +200,113 @@ fun SettingsScreen(
                                 fontSize = 11.5.sp,
                                 color = Color(0xFF5F6368)
                             )
-                            Button(
-                                onClick = onRequestGoogleSignIn,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary
-                                ),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.fillMaxWidth().testTag("settings_authorize_drive_button")
+
+                            if (uiState.authError != null) {
+                                val pkgName = remember { CertificateHelper.getPackageName(context) }
+                                val sha1 = remember { CertificateHelper.getSigningSha1(context) }
+                                Surface(
+                                    color = Color(0xFFFCE8E6),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFFAD2CF)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(10.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = "Google Cloud Console Registration Required",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.5.sp,
+                                                color = Color(0xFFC5221F),
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            IconButton(
+                                                onClick = onClearAuthError,
+                                                modifier = Modifier.size(20.dp)
+                                            ) {
+                                                Icon(Icons.Default.Close, contentDescription = "Dismiss", modifier = Modifier.size(14.dp))
+                                            }
+                                        }
+                                        Text(
+                                            text = uiState.authError,
+                                            fontSize = 11.sp,
+                                            color = Color(0xFFC5221F)
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "Package: $pkgName",
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 10.5.sp,
+                                            color = Color(0xFF202124)
+                                        )
+                                        Text(
+                                            text = "SHA-1: $sha1",
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 10.5.sp,
+                                            color = Color(0xFF202124)
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        OutlinedButton(
+                                            onClick = {
+                                                val copyText = "Package Name: $pkgName\nSigning SHA-1: $sha1"
+                                                clipboardManager.setText(AnnotatedString(copyText))
+                                                Toast.makeText(context, "Copied OAuth setup details to clipboard!", Toast.LENGTH_SHORT).show()
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            contentPadding = PaddingValues(vertical = 4.dp)
+                                        ) {
+                                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Copy OAuth Setup Info", fontSize = 11.sp)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(Icons.Default.CloudQueue, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Button(
+                                    onClick = onAuthorizeDrive,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.weight(1.2f).testTag("settings_authorize_drive_button")
+                                ) {
+                                    Icon(Icons.Default.CloudQueue, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Authorize Drive", fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
+                                }
+
+                                OutlinedButton(
+                                    onClick = onRequestGoogleSignIn,
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.weight(1f).testTag("settings_switch_account_btn")
+                                ) {
+                                    Text("Switch", fontSize = 11.5.sp)
+                                }
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    manualTokenFeedback = null
+                                    showManualTokenDialog = true
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth().testTag("settings_manual_token_button")
+                            ) {
+                                Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Authorize Google Drive", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("Enter Access Token Manually", fontSize = 11.5.sp)
                             }
                         }
                     }
@@ -630,6 +741,75 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+    }
+
+    if (showManualTokenDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!manualTokenVerifying) showManualTokenDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Key, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("Manual OAuth Token", style = MaterialTheme.typography.titleMedium)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Paste a Google Drive OAuth access token (e.g. from Google OAuth 2.0 Playground or gcloud with scope https://www.googleapis.com/auth/drive.file) to immediately test Drive sync.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = manualTokenInput,
+                        onValueChange = { manualTokenInput = it },
+                        label = { Text("Access Token (ya29...)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 4,
+                        enabled = !manualTokenVerifying
+                    )
+                    manualTokenFeedback?.let { msg ->
+                        Text(
+                            text = msg,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (msg.startsWith("Success", ignoreCase = true)) Color(0xFF137333) else MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        manualTokenVerifying = true
+                        manualTokenFeedback = "Verifying token with Google Drive API..."
+                        onVerifyAndSaveOAuthToken(manualTokenInput) { success, msg ->
+                            manualTokenVerifying = false
+                            manualTokenFeedback = msg
+                            if (success) {
+                                showManualTokenDialog = false
+                                Toast.makeText(context, "Google Drive Connected!", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    enabled = !manualTokenVerifying && manualTokenInput.isNotBlank()
+                ) {
+                    if (manualTokenVerifying) {
+                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Verifying...")
+                    } else {
+                        Text("Verify & Save")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showManualTokenDialog = false },
+                    enabled = !manualTokenVerifying
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

@@ -72,7 +72,8 @@ data class HealthSyncUiState(
     val isDiagnosingDrive: Boolean = false,
     val diagnosticTestResult: DriveDiagnosticTestResult? = null,
     val showDiagnosticsDialog: Boolean = false,
-    val cacheSummary: CacheSummary = CacheSummary(0, 0, 0L, emptyList())
+    val cacheSummary: CacheSummary = CacheSummary(0, 0, 0L, emptyList()),
+    val authError: String? = null
 )
 
 class HealthSyncViewModel(application: Application) : AndroidViewModel(application) {
@@ -97,6 +98,10 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
     val history: StateFlow<List<ExportHistoryItem>> = historyStore.history
     val diagnosticLogs: StateFlow<List<LogEntry>> = AppLogger.logs
 
+    fun clearAuthError() {
+        _uiState.update { it.copy(authError = null) }
+    }
+
     suspend fun resolveOrFetchDriveAccessToken(): String? {
         val settings = prefs.settings.value
         var currentToken = settings.googleOAuthAccessToken
@@ -108,8 +113,12 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                 if (!fetched.isNullOrBlank()) {
                     prefs.updateGoogleOAuthAccessToken(fetched)
                     AppLogger.s("AUTH", "Google Drive authorized automatically for ${settings.connectedEmail}")
+                    _uiState.update { it.copy(authError = null) }
                     return fetched
                 }
+            } catch (unregistered: com.example.auth.UnregisteredOnApiConsoleException) {
+                AppLogger.e("AUTH", "UnregisteredOnApiConsole: ${unregistered.message}")
+                _uiState.update { it.copy(authError = unregistered.message) }
             } catch (recoverable: com.google.android.gms.auth.UserRecoverableAuthException) {
                 AppLogger.w("AUTH", "User consent required for Google Drive on ${settings.connectedEmail}")
                 _userConsentIntentEvent.value = recoverable.intent
@@ -132,14 +141,19 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                 if (!token.isNullOrBlank()) {
                     prefs.updateGoogleOAuthAccessToken(token, email, name)
                     AppLogger.s("AUTH", "Google Drive authorized for $email")
+                    _uiState.update { it.copy(authError = null) }
                 } else {
                     AppLogger.w("AUTH", "Signed in as $email. Drive permission consent pending.")
                 }
+            } catch (unregistered: com.example.auth.UnregisteredOnApiConsoleException) {
+                AppLogger.e("AUTH", "UnregisteredOnApiConsole: ${unregistered.message}")
+                _uiState.update { it.copy(authError = unregistered.message) }
             } catch (recoverable: com.google.android.gms.auth.UserRecoverableAuthException) {
                 AppLogger.i("AUTH", "Drive consent intent available for $email")
                 _userConsentIntentEvent.value = recoverable.intent
             } catch (e: Exception) {
                 AppLogger.e("AUTH", "Failed to retrieve initial Drive token: ${e.message}")
+                _uiState.update { it.copy(authError = e.message) }
             }
         }
     }
@@ -147,17 +161,26 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
     fun refreshGoogleDriveToken() {
         viewModelScope.launch {
             val email = prefs.settings.value.connectedEmail
-            if (email.isBlank()) return@launch
+            if (email.isBlank()) {
+                AppLogger.w("AUTH", "Cannot refresh token: no connected Google account email.")
+                return@launch
+            }
             try {
+                AppLogger.i("AUTH", "Refreshing Google Drive OAuth token for account: $email")
                 val token = com.example.auth.GoogleAuthHelper.fetchDriveAccessToken(getApplication(), email)
                 if (!token.isNullOrBlank()) {
                     prefs.updateGoogleOAuthAccessToken(token, email, prefs.settings.value.connectedDisplayName)
                     AppLogger.s("AUTH", "Google Drive token refreshed successfully.")
+                    _uiState.update { it.copy(authError = null) }
                 }
+            } catch (unregistered: com.example.auth.UnregisteredOnApiConsoleException) {
+                AppLogger.e("AUTH", "UnregisteredOnApiConsole: ${unregistered.message}")
+                _uiState.update { it.copy(authError = unregistered.message) }
             } catch (recoverable: com.google.android.gms.auth.UserRecoverableAuthException) {
                 _userConsentIntentEvent.value = recoverable.intent
             } catch (e: Exception) {
                 AppLogger.e("AUTH", "Error refreshing Drive token: ${e.message}")
+                _uiState.update { it.copy(authError = e.message) }
             }
         }
     }
@@ -334,7 +357,8 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     fileName = defaultFileName,
                     writeMode = settings.writeMode,
                     archiveMaxDays = settings.archiveMaxDays,
-                    isDemoMode = settings.demoModeEnabled
+                    isDemoMode = settings.demoModeEnabled,
+                    userEmail = settings.connectedEmail.ifBlank { null }
                 )
 
                 val result = SyncResult(
@@ -424,7 +448,8 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     fileName = defaultFileName,
                     writeMode = settings.writeMode,
                     archiveMaxDays = settings.archiveMaxDays,
-                    isDemoMode = settings.demoModeEnabled
+                    isDemoMode = settings.demoModeEnabled,
+                    userEmail = settings.connectedEmail.ifBlank { null }
                 )
 
                 val result = SyncResult(
@@ -517,9 +542,11 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
             _uiState.update { it.copy(isDiagnosingDrive = true, diagnosticTestResult = null) }
             val settings = prefs.settings.value
             val folderPath = settings.customFolderPath.ifBlank { settings.targetFolder.folderPath }
+            val activeToken = resolveOrFetchDriveAccessToken()
             val result = driveClient.runFullDriveDiagnostic(
-                accessToken = settings.googleOAuthAccessToken.ifBlank { null },
-                folderPath = folderPath
+                accessToken = activeToken,
+                folderPath = folderPath,
+                userEmail = settings.connectedEmail.ifBlank { null }
             )
             _uiState.update {
                 it.copy(
@@ -543,12 +570,21 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
 
     fun getDiagnosticReport(): String {
         val settings = prefs.settings.value
+        val pkgName = com.example.util.CertificateHelper.getPackageName(getApplication())
+        val sha1 = com.example.util.CertificateHelper.getSigningSha1(getApplication())
+        val sha256 = com.example.util.CertificateHelper.getSigningSha256(getApplication())
+        val oauthInfo = """
+            • Package Name: $pkgName
+            • Signing SHA-1: $sha1
+            • Signing SHA-256: $sha256
+        """.trimIndent()
         return AppLogger.generateDiagnosticReport(
             connectedEmail = settings.connectedEmail,
             targetFolder = settings.customFolderPath.ifBlank { settings.targetFolder.folderPath },
             hasToken = settings.googleOAuthAccessToken.isNotBlank(),
             isDemoMode = settings.demoModeEnabled,
-            cacheSummary = driveClient.cacheManager.getCacheSummary()
+            cacheSummary = driveClient.cacheManager.getCacheSummary(),
+            oauthClientInfo = oauthInfo
         )
     }
 
@@ -979,7 +1015,8 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                         fileName = defaultFileName,
                         writeMode = WriteMode.APPEND,
                         archiveMaxDays = settings.archiveMaxDays,
-                        isDemoMode = settings.demoModeEnabled
+                        isDemoMode = settings.demoModeEnabled,
+                        userEmail = settings.connectedEmail.ifBlank { null }
                     )
                     lastDirectResult = direct
 

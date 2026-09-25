@@ -15,8 +15,9 @@
 .cxx
 local.properties
 .env
-debug.keystore
-debug.keystore.base64
+# Keystore options: uncomment to ignore, or commit a fixed debug.keystore for shared CI/dev OAuth
+# debug.keystore
+# debug.keystore.base64
 
 # Android build outputs & binaries (prevent exceeding GitHub size limits)
 *.apk

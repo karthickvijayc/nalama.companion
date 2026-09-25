@@ -29,6 +29,7 @@ fun DashboardScreen(
     uiState: HealthSyncUiState,
     onRequestHealthPermissions: () -> Unit,
     onRequestGoogleSignIn: () -> Unit = {},
+    onAuthorizeDrive: () -> Unit = onRequestGoogleSignIn,
     onSelectSourceApp: (SyncSourceApp) -> Unit,
     onWriteModeSelected: (WriteMode) -> Unit,
     onFolderSelected: (TargetFolder) -> Unit,
@@ -137,10 +138,20 @@ fun DashboardScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = Color(0xFF5F6368)
                         )
+                        if (uiState.authError != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Setup required in Google Cloud Console. See Settings or Diagnostics for details.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Button(
-                        onClick = onRequestGoogleSignIn,
+                        onClick = if (uiState.settings.connectedEmail.isNotBlank()) onAuthorizeDrive else onRequestGoogleSignIn,
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,

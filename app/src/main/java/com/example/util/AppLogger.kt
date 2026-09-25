@@ -156,7 +156,8 @@ object AppLogger {
         targetFolder: String,
         hasToken: Boolean,
         isDemoMode: Boolean,
-        cacheSummary: com.example.drive.CacheSummary
+        cacheSummary: com.example.drive.CacheSummary,
+        oauthClientInfo: String = ""
     ): String {
         val syncStatus = """
             • Connected Account: ${if (connectedEmail.isNotBlank()) connectedEmail else "(None)"}
@@ -167,7 +168,7 @@ object AppLogger {
             • Local Cache Indexed Folders: ${cacheSummary.folderCount}
             • Local Cache Total Size: ${cacheSummary.totalSizeBytes / 1024} KB
         """.trimIndent()
-        return generateDiagnosticReport("", syncStatus)
+        return generateDiagnosticReport(oauthClientInfo, syncStatus)
     }
 
     fun generateDiagnosticReport(
@@ -183,10 +184,12 @@ object AppLogger {
         sb.appendLine("• Device: ${Build.MANUFACTURER} ${Build.MODEL} (${Build.DEVICE})")
         sb.appendLine("• Android Version: ${Build.VERSION.RELEASE} (API Level ${Build.VERSION.SDK_INT})")
         sb.appendLine("• Build Fingerprint: ${Build.FINGERPRINT}")
-        if (deviceInfoExtra.isNotBlank()) {
-            sb.appendLine(deviceInfoExtra.trim())
-        }
         sb.appendLine()
+        if (deviceInfoExtra.isNotBlank()) {
+            sb.appendLine("OAUTH 2.0 REGISTRATION CREDENTIALS:")
+            sb.appendLine(deviceInfoExtra.trim())
+            sb.appendLine()
+        }
         if (syncStatusExtra.isNotBlank()) {
             sb.appendLine("SYNC & STORAGE STATUS:")
             sb.appendLine(syncStatusExtra.trim())

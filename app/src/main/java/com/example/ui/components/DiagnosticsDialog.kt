@@ -128,7 +128,92 @@ fun DiagnosticsDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // App Signature & OAuth Client Credentials Card
+                val runtimePkg = remember { com.example.util.CertificateHelper.getPackageName(context) }
+                val runtimeSha1 = remember { com.example.util.CertificateHelper.getSigningSha1(context) }
+                val runtimeSha256 = remember { com.example.util.CertificateHelper.getSigningSha256(context) }
+                var showSignatureDetails by remember { mutableStateOf(false) }
+
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Default.VpnKey, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                Text("OAuth 2.0 Credentials (Play Services)", fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
+                            }
+                            IconButton(onClick = { showSignatureDetails = !showSignatureDetails }, modifier = Modifier.size(24.dp)) {
+                                Icon(
+                                    imageVector = if (showSignatureDetails) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Package: $runtimePkg",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            IconButton(
+                                onClick = {
+                                    val copyText = "Package Name: $runtimePkg\nSigning SHA-1: $runtimeSha1\nSigning SHA-256: $runtimeSha256"
+                                    clipboardManager.setText(AnnotatedString(copyText))
+                                    Toast.makeText(context, "Copied OAuth client info to clipboard!", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy OAuth Credentials", modifier = Modifier.size(14.dp))
+                            }
+                        }
+
+                        if (showSignatureDetails) {
+                            Text(
+                                text = "SHA-1: $runtimeSha1",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "SHA-256: $runtimeSha256",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 9.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "Register this Package Name and SHA-1 as an Android OAuth Client ID in Google Cloud Console.",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Action Buttons Bar
                 Row(
