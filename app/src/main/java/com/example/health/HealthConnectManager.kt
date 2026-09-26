@@ -571,7 +571,11 @@ class HealthConnectManager(private val context: Context) {
         val endInstant = try {
             if (!endTimeStr.isNullOrBlank()) {
                 val parts = endTimeStr.split(":")
-                date.atTime(parts[0].toInt(), parts[1].toInt()).atZone(zoneId).toInstant()
+                var endZoned = date.atTime(parts[0].toInt(), parts[1].toInt()).atZone(zoneId)
+                if (endZoned.toInstant().isBefore(startInstant)) {
+                    endZoned = endZoned.plusDays(1)
+                }
+                endZoned.toInstant()
             } else if (durationMinutes > 0) {
                 startInstant.plusSeconds(durationMinutes * 60L)
             } else null

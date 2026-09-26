@@ -258,9 +258,11 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
     fun refreshHevyWorkouts() {
         viewModelScope.launch {
             val settings = prefs.settings.value
+            val zoneId = try { ZoneId.of(settings.timezoneId) } catch (_: Exception) { ZoneId.systemDefault() }
             val fetchResult = hevyManager.fetchWorkouts(
                 apiKey = settings.hevyApiKey,
-                isDemoMode = settings.demoModeEnabled
+                isDemoMode = settings.demoModeEnabled,
+                zoneId = zoneId
             )
 
             val payload = fetchResult.getOrElse {
@@ -423,7 +425,8 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
             if (isHevy) {
                 val fetchResult = hevyManager.fetchWorkouts(
                     apiKey = settings.hevyApiKey,
-                    isDemoMode = settings.demoModeEnabled
+                    isDemoMode = settings.demoModeEnabled,
+                    zoneId = zoneId
                 )
 
                 if (fetchResult.isFailure && !settings.demoModeEnabled) {
@@ -997,7 +1000,8 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                 val hevyResult = hevyManager.fetchAllWorkoutsPaginated(
                     apiKey = settings.hevyApiKey,
                     isDemoMode = settings.demoModeEnabled,
-                    pageSize = 10
+                    pageSize = 10,
+                    zoneId = zoneId
                 ) { page, totalPages, workoutsCount ->
                     val readProgress = baseProgress + (if (totalPages > 0) (page.toFloat() / totalPages.toFloat()) * 0.5f * taskWeight else 0.25f * taskWeight)
                     _uiState.update {

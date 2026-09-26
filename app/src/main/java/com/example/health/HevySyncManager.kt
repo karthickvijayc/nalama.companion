@@ -10,6 +10,8 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -254,10 +256,11 @@ class HevySyncManager {
         apiKey: String,
         isDemoMode: Boolean = false,
         page: Int = 1,
-        pageSize: Int = 10
+        pageSize: Int = 10,
+        zoneId: ZoneId = ZoneId.systemDefault()
     ): Result<WorkoutsExportPayload> = withContext(Dispatchers.IO) {
         val trimmedKey = apiKey.trim()
-        val nowIso = ZonedDateTime.now().format(DateTimeFormatter.ISO_INSTANT)
+        val nowIso = ZonedDateTime.now(zoneId).format(DateTimeFormatter.ISO_INSTANT)
 
         if (trimmedKey.isBlank()) {
             if (isDemoMode) {
@@ -311,7 +314,7 @@ class HevySyncManager {
 
             val json = JSONObject(body)
             val workoutsArray = json.optJSONArray("workouts") ?: org.json.JSONArray()
-            val parsedWorkouts = parseWorkoutsArray(workoutsArray)
+            val parsedWorkouts = parseWorkoutsArray(workoutsArray, zoneId)
 
             Result.success(
                 WorkoutsExportPayload(
@@ -334,6 +337,7 @@ class HevySyncManager {
         apiKey: String,
         isDemoMode: Boolean = false,
         pageSize: Int = 10,
+        zoneId: ZoneId = ZoneId.systemDefault(),
         onProgress: (page: Int, totalPages: Int, workoutsCount: Int) -> Unit
     ): Result<List<WorkoutItem>> = withContext(Dispatchers.IO) {
         val trimmedKey = apiKey.trim()
@@ -397,7 +401,7 @@ class HevySyncManager {
 
                 if (workoutsArray.length() == 0) break
 
-                val pageWorkouts = parseWorkoutsArray(workoutsArray)
+                val pageWorkouts = parseWorkoutsArray(workoutsArray, zoneId)
                 allWorkouts.addAll(pageWorkouts)
 
                 onProgress(currentPage, totalPages, allWorkouts.size)
@@ -417,17 +421,48 @@ class HevySyncManager {
         }
     }
 
-    private fun parseWorkoutsArray(workoutsArray: org.json.JSONArray): List<WorkoutItem> {
+    internal fun parseWorkoutsArray(
+        workoutsArray: org.json.JSONArray,
+        zoneId: ZoneId = ZoneId.systemDefault()
+    ): List<WorkoutItem> {
         val parsedWorkouts = mutableListOf<WorkoutItem>()
         for (i in 0 until workoutsArray.length()) {
             val wObj = workoutsArray.getJSONObject(i)
             val startTimeStr = wObj.optString("start_time", "")
             val endTimeStr = wObj.optString("end_time", "")
 
-            val date = if (startTimeStr.contains("T")) startTimeStr.split("T")[0] else LocalDate.now().toString()
-            val startTimeFormatted = if (startTimeStr.contains("T")) {
-                startTimeStr.split("T")[1].take(5)
-            } else "07:00"
+            var localDateStr = LocalDate.now(zoneId).toString()
+            var startTimeFormatted = "07:00"
+            var endTimeFormatted: String? = null
+            var calculatedDurationMinutes: Int? = null
+
+            try {
+                if (startTimeStr.isNotBlank()) {
+                    val startInstant = Instant.parse(startTimeStr)
+                    val startZoned = startInstant.atZone(zoneId)
+                    localDateStr = startZoned.toLocalDate().toString()
+                    startTimeFormatted = startZoned.format(DateTimeFormatter.ofPattern("HH:mm"))
+
+                    if (endTimeStr.isNotBlank()) {
+                        val endInstant = Instant.parse(endTimeStr)
+                        val endZoned = endInstant.atZone(zoneId)
+                        endTimeFormatted = endZoned.format(DateTimeFormatter.ofPattern("HH:mm"))
+
+                        val diffMin = Duration.between(startInstant, endInstant).toMinutes().toInt()
+                        if (diffMin > 0) {
+                            calculatedDurationMinutes = diffMin
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                if (startTimeStr.contains("T")) {
+                    localDateStr = startTimeStr.split("T")[0]
+                    startTimeFormatted = startTimeStr.split("T")[1].take(5)
+                }
+                if (endTimeStr.contains("T")) {
+                    endTimeFormatted = endTimeStr.split("T")[1].take(5)
+                }
+            }
 
             val exercisesJson = wObj.optJSONArray("exercises") ?: org.json.JSONArray()
             val exerciseList = mutableListOf<WorkoutExercise>()
@@ -507,7 +542,13 @@ class HevySyncManager {
             }
             val workoutNotes = rawWkNotes?.let { WorkoutCsvConverter.sanitizeField(it) }?.ifBlank { null }
 
-            val durationMin = (wObj.optInt("duration_seconds", 3300) / 60).coerceAtLeast(1)
+            val durationMin = when {
+                wObj.has("duration_seconds") && wObj.optInt("duration_seconds") > 0 ->
+                    (wObj.optInt("duration_seconds") / 60).coerceAtLeast(1)
+                calculatedDurationMinutes != null && calculatedDurationMinutes > 0 ->
+                    calculatedDurationMinutes
+                else -> 55
+            }
             val initialCalories = if (wObj.has("calories") && !wObj.isNull("calories") && wObj.optInt("calories") > 0) {
                 wObj.optInt("calories")
             } else {
@@ -517,10 +558,10 @@ class HevySyncManager {
             parsedWorkouts.add(
                 WorkoutItem(
                     workoutId = wObj.optString("id", UUID.randomUUID().toString()),
-                    date = date,
+                    date = localDateStr,
                     title = wObj.optString("title", "Workout"),
                     startTime = startTimeFormatted,
-                    endTime = if (endTimeStr.contains("T")) endTimeStr.split("T")[1].take(5) else null,
+                    endTime = endTimeFormatted,
                     durationMinutes = durationMin,
                     totalVolumeKg = totalVolKg.toInt(),
                     totalSets = totalSetsCount,
