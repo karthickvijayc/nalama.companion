@@ -34,28 +34,7 @@ class HealthConnectManager(private val context: Context) {
         }
     }
 
-    companion object {
-        const val PERMISSION_READ_HEALTH_DATA_HISTORY = "android.permission.health.READ_HEALTH_DATA_HISTORY"
-    }
-
-    val permissions: Set<String> = setOf(
-        PERMISSION_READ_HEALTH_DATA_HISTORY,
-        HealthPermission.getReadPermission(StepsRecord::class),
-        HealthPermission.getReadPermission(DistanceRecord::class),
-        HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
-        HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
-        HealthPermission.getReadPermission(ExerciseSessionRecord::class),
-        HealthPermission.getReadPermission(Vo2MaxRecord::class),
-        HealthPermission.getReadPermission(SleepSessionRecord::class),
-        HealthPermission.getReadPermission(HeartRateRecord::class),
-        HealthPermission.getReadPermission(RestingHeartRateRecord::class),
-        HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class),
-        HealthPermission.getReadPermission(OxygenSaturationRecord::class),
-        HealthPermission.getReadPermission(BloodPressureRecord::class),
-        HealthPermission.getReadPermission(WeightRecord::class),
-        HealthPermission.getReadPermission(BodyFatRecord::class),
-        HealthPermission.getReadPermission(LeanBodyMassRecord::class)
-    )
+    val permissions: Set<String> get() = PERMISSIONS
 
     fun checkAvailability(): HealthConnectAvailability {
         val status = HealthConnectClient.getSdkStatus(context)
@@ -488,7 +467,10 @@ class HealthConnectManager(private val context: Context) {
     }
 
     companion object {
+        const val PERMISSION_READ_HEALTH_DATA_HISTORY = "android.permission.health.READ_HEALTH_DATA_HISTORY"
+
         val PERMISSIONS: Set<String> = setOf(
+            PERMISSION_READ_HEALTH_DATA_HISTORY,
             HealthPermission.getReadPermission(StepsRecord::class),
             HealthPermission.getReadPermission(DistanceRecord::class),
             HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
