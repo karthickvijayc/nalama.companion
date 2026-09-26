@@ -507,6 +507,7 @@ class HevySyncManager {
             }
             val workoutNotes = rawWkNotes?.let { WorkoutCsvConverter.sanitizeField(it) }?.ifBlank { null }
 
+            val durationMin = (wObj.optInt("duration_seconds", 3300) / 60).coerceAtLeast(1)
             val initialCalories = if (wObj.has("calories") && !wObj.isNull("calories") && wObj.optInt("calories") > 0) {
                 wObj.optInt("calories")
             } else {
