@@ -395,4 +395,26 @@ workout_id,date,title,start_time,end_time,duration_minutes,total_volume_kg,total
         val deduplicated2 = com.example.util.WorkoutCsvConverter.combineNotes(input2, null)
         assertEquals("Chest shoulder triceps | Using smith machine", deduplicated2)
     }
+
+    @Test
+    fun testPersonalizedWeightCalorieEstimation() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val healthManager = com.example.health.HealthConnectManager(context)
+
+        // 60 minutes for an 80 kg person: 5.5 * 80 * 1.0 = 440 kcal
+        val cal80 = healthManager.calculateEstimatedBiometrics(durationMinutes = 60, weightKg = 80.0)
+        assertEquals(440, cal80.calories)
+
+        // 60 minutes for a 60 kg person: 5.5 * 60 * 1.0 = 330 kcal
+        val cal60 = healthManager.calculateEstimatedBiometrics(durationMinutes = 60, weightKg = 60.0)
+        assertEquals(330, cal60.calories)
+
+        // With high heart rate (e.g. 140 bpm, multiplier 1.20): 440 * 1.20 = 528 kcal
+        val cal80WithHr = healthManager.calculateEstimatedBiometrics(durationMinutes = 60, weightKg = 80.0, avgHr = 140)
+        assertEquals(528, cal80WithHr.calories)
+
+        // Default 70 kg fallback when weight is null: 5.5 * 70 * 1.0 = 385 kcal
+        val calDefault = healthManager.calculateEstimatedBiometrics(durationMinutes = 60, weightKg = null)
+        assertEquals(385, calDefault.calories)
+    }
 }

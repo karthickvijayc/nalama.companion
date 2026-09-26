@@ -502,6 +502,34 @@ class HealthConnectManager(private val context: Context) {
     }
 
     /**
+     * Retrieves the user's latest recorded weight in kilograms from Health Connect.
+     * Looks back up to 730 days (2 years).
+     */
+    suspend fun getLatestWeightKg(): Double? {
+        val client = healthConnectClient ?: return null
+        return try {
+            val granted = client.permissionController.getGrantedPermissions()
+            val weightPerm = HealthPermission.getReadPermission(WeightRecord::class)
+            if (!granted.contains(weightPerm)) return null
+
+            val now = Instant.now()
+            val startTime = now.minusSeconds(730L * 24 * 3600)
+            val request = ReadRecordsRequest(
+                recordType = WeightRecord::class,
+                timeRangeFilter = TimeRangeFilter.between(startTime, now),
+                ascendingOrder = false,
+                pageSize = 1
+            )
+            val response = client.readRecords(request)
+            response.records.firstOrNull()?.weight?.inKilograms?.let {
+                (it * 10).roundToInt() / 10.0
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
      * Reads correlated heart rate and calories from Health Connect for a specific workout session window.
      */
     suspend fun readWorkoutBiometrics(
@@ -509,14 +537,15 @@ class HealthConnectManager(private val context: Context) {
         startTimeStr: String,
         endTimeStr: String?,
         durationMinutes: Int,
-        zoneId: ZoneId
+        zoneId: ZoneId,
+        weightKg: Double? = null
     ): WorkoutBiometrics {
         val parsedDate = try {
             LocalDate.parse(date)
         } catch (_: Exception) {
             null
-        } ?: return calculateEstimatedBiometrics(durationMinutes)
-        return readWorkoutBiometrics(parsedDate, startTimeStr, endTimeStr, durationMinutes, zoneId)
+        } ?: return calculateEstimatedBiometrics(durationMinutes, weightKg)
+        return readWorkoutBiometrics(parsedDate, startTimeStr, endTimeStr, durationMinutes, zoneId, weightKg)
     }
 
     suspend fun readWorkoutBiometrics(
@@ -524,11 +553,12 @@ class HealthConnectManager(private val context: Context) {
         startTimeStr: String,
         endTimeStr: String?,
         durationMinutes: Int,
-        zoneId: ZoneId
+        zoneId: ZoneId,
+        weightKg: Double? = null
     ): WorkoutBiometrics {
         val client = healthConnectClient
         if (client == null || !hasAllPermissions()) {
-            return calculateEstimatedBiometrics(durationMinutes)
+            return calculateEstimatedBiometrics(durationMinutes, weightKg)
         }
 
         val startInstant = try {
@@ -536,7 +566,7 @@ class HealthConnectManager(private val context: Context) {
             date.atTime(parts[0].toInt(), parts[1].toInt()).atZone(zoneId).toInstant()
         } catch (_: Exception) {
             null
-        } ?: return calculateEstimatedBiometrics(durationMinutes)
+        } ?: return calculateEstimatedBiometrics(durationMinutes, weightKg)
 
         val endInstant = try {
             if (!endTimeStr.isNullOrBlank()) {
@@ -550,7 +580,7 @@ class HealthConnectManager(private val context: Context) {
         } ?: if (durationMinutes > 0) startInstant.plusSeconds(durationMinutes * 60L) else null
 
         if (endInstant == null || !endInstant.isAfter(startInstant)) {
-            return calculateEstimatedBiometrics(durationMinutes)
+            return calculateEstimatedBiometrics(durationMinutes, weightKg)
         }
 
         var avgHr: Int? = null
@@ -592,12 +622,10 @@ class HealthConnectManager(private val context: Context) {
             }
         } catch (_: Exception) {}
 
-        // If no calories recorded in Health Connect, provide standard metabolic estimation
+        // If no calories recorded in Health Connect, provide standard metabolic estimation based on weight & HR
         if (calories == null || calories <= 0) {
-            calories = if (durationMinutes > 0) {
-                // Resistance training ~6.0 kcal per minute
-                (durationMinutes * 6.0).roundToInt().coerceAtLeast(30)
-            } else null
+            val estimated = calculateEstimatedBiometrics(durationMinutes, weightKg, avgHr)
+            calories = estimated.calories
         }
 
         return WorkoutBiometrics(
@@ -607,11 +635,39 @@ class HealthConnectManager(private val context: Context) {
         )
     }
 
-    fun calculateEstimatedBiometrics(durationMinutes: Int): WorkoutBiometrics {
-        val estimatedCalories = if (durationMinutes > 0) {
-            (durationMinutes * 6.0).roundToInt().coerceAtLeast(30)
-        } else null
-        return WorkoutBiometrics(calories = estimatedCalories)
+    /**
+     * Calculates personalized calorie estimation based on duration, body weight, and heart rate.
+     * Uses standard MET (Metabolic Equivalent of Task) equation for resistance training (MET ~ 5.5).
+     * Energy (kcal) = MET * weightKg * (durationMinutes / 60.0)
+     */
+    fun calculateEstimatedBiometrics(
+        durationMinutes: Int,
+        weightKg: Double? = null,
+        avgHr: Int? = null
+    ): WorkoutBiometrics {
+        if (durationMinutes <= 0) return WorkoutBiometrics()
+
+        val effectiveWeight = weightKg?.takeIf { it > 0.0 } ?: 70.0
+
+        // Standard MET calculation for resistance training (Compendium of Physical Activities MET = 5.5)
+        var estCalories = (5.5 * effectiveWeight * (durationMinutes / 60.0)).roundToInt().coerceAtLeast(30)
+
+        // If continuous average HR was tracked during workout, adjust intensity multiplier
+        if (avgHr != null && avgHr > 60) {
+            val hrMultiplier = when {
+                avgHr >= 150 -> 1.35 // High intensity circuit/HIIT
+                avgHr >= 135 -> 1.20 // Heavy lifting / short rests
+                avgHr >= 115 -> 1.05 // Moderate resistance training
+                avgHr >= 95 -> 0.90  // Light / long rests
+                else -> 0.75
+            }
+            estCalories = (estCalories * hrMultiplier).roundToInt().coerceAtLeast(30)
+        }
+
+        return WorkoutBiometrics(
+            avgHeartRateBpm = avgHr,
+            calories = estCalories
+        )
     }
 
     companion object {

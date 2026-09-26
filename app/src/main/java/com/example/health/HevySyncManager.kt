@@ -206,6 +206,7 @@ class HevySyncManager {
         healthManager: HealthConnectManager,
         zoneId: ZoneId = ZoneId.systemDefault()
     ): List<WorkoutItem> = withContext(Dispatchers.IO) {
+        val userWeightKg = healthManager.getLatestWeightKg()
         workouts.map { workout ->
             try {
                 val biometrics = healthManager.readWorkoutBiometrics(
@@ -213,16 +214,30 @@ class HevySyncManager {
                     startTimeStr = workout.startTime,
                     endTimeStr = workout.endTime,
                     durationMinutes = workout.durationMinutes,
-                    zoneId = zoneId
+                    zoneId = zoneId,
+                    weightKg = userWeightKg
                 )
-                val estimated = healthManager.calculateEstimatedBiometrics(workout.durationMinutes)
+                val effectiveAvgHr = workout.avgHeartRateBpm ?: biometrics.avgHeartRateBpm
+                val estimated = healthManager.calculateEstimatedBiometrics(
+                    durationMinutes = workout.durationMinutes,
+                    weightKg = userWeightKg,
+                    avgHr = effectiveAvgHr
+                )
+                val resolvedCalories = biometrics.calories
+                    ?: workout.caloriesActualHr
+                    ?: estimated.calories
+
                 workout.copy(
-                    avgHeartRateBpm = workout.avgHeartRateBpm ?: biometrics.avgHeartRateBpm,
+                    avgHeartRateBpm = effectiveAvgHr,
                     maxHeartRateBpm = workout.maxHeartRateBpm ?: biometrics.maxHeartRateBpm,
-                    caloriesActualHr = workout.caloriesActualHr ?: biometrics.calories ?: estimated.calories
+                    caloriesActualHr = resolvedCalories
                 )
             } catch (_: Exception) {
-                val estimated = healthManager.calculateEstimatedBiometrics(workout.durationMinutes)
+                val estimated = healthManager.calculateEstimatedBiometrics(
+                    durationMinutes = workout.durationMinutes,
+                    weightKg = userWeightKg,
+                    avgHr = workout.avgHeartRateBpm
+                )
                 workout.copy(
                     caloriesActualHr = workout.caloriesActualHr ?: estimated.calories
                 )
@@ -492,11 +507,10 @@ class HevySyncManager {
             }
             val workoutNotes = rawWkNotes?.let { WorkoutCsvConverter.sanitizeField(it) }?.ifBlank { null }
 
-            val durationMin = (wObj.optInt("duration_seconds", 3300) / 60).coerceAtLeast(1)
-            val initialCalories = if (wObj.has("calories") && !wObj.isNull("calories")) {
+            val initialCalories = if (wObj.has("calories") && !wObj.isNull("calories") && wObj.optInt("calories") > 0) {
                 wObj.optInt("calories")
             } else {
-                (durationMin * 6.0).roundToInt().coerceAtLeast(30)
+                null
             }
 
             parsedWorkouts.add(
