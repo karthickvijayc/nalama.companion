@@ -120,6 +120,7 @@ class GoogleDriveDirectClient(private val context: Context) {
                 var fileId: String
                 var finalRemoteMd5: String
                 var folderId: String
+                var activeMd5ToUpload = localActiveMd5
 
                 try {
                     AppLogger.d("DRIVE", "Live Google Drive sync active. Resolving folder structure '$folderPath'...")
@@ -130,8 +131,8 @@ class GoogleDriveDirectClient(private val context: Context) {
 
                     if (remoteMeta != null) {
                         val remoteMd5 = remoteMeta.optString("md5Checksum", "")
+                        val cachedInfo = cacheManager.getCachedFileInfo(activeCsvFileName)
                         var activeCsvToUpload = mergeResult.activeCsv
-                        var activeMd5ToUpload = localActiveMd5
                         if (remoteMd5.isNotEmpty() && cachedInfo != null && remoteMd5 != cachedInfo.lastRemoteMd5) {
                             AppLogger.i("DRIVE", "Remote file was modified externally on Google Drive. Fetching and re-merging...")
                             val remoteContent = downloadRemoteFileText(activeToken, remoteMeta.getString("id"))
@@ -213,7 +214,7 @@ class GoogleDriveDirectClient(private val context: Context) {
                     fileName = activeCsvFileName,
                     fileId = fileId,
                     remoteMd5 = finalRemoteMd5,
-                    localMd5 = localActiveMd5,
+                    localMd5 = activeMd5ToUpload,
                     rowCount = mergeResult.totalActiveRecords
                 )
 

@@ -505,6 +505,21 @@ class HealthConnectManager(private val context: Context) {
      * Reads correlated heart rate and calories from Health Connect for a specific workout session window.
      */
     suspend fun readWorkoutBiometrics(
+        date: String,
+        startTimeStr: String,
+        endTimeStr: String?,
+        durationMinutes: Int,
+        zoneId: ZoneId
+    ): WorkoutBiometrics {
+        val parsedDate = try {
+            LocalDate.parse(date)
+        } catch (_: Exception) {
+            null
+        } ?: return calculateEstimatedBiometrics(durationMinutes)
+        return readWorkoutBiometrics(parsedDate, startTimeStr, endTimeStr, durationMinutes, zoneId)
+    }
+
+    suspend fun readWorkoutBiometrics(
         date: LocalDate,
         startTimeStr: String,
         endTimeStr: String?,
