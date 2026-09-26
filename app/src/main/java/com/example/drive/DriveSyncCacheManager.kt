@@ -282,10 +282,16 @@ class DriveSyncCacheManager(private val context: Context) {
         // 3. Sort all records chronologically
         val sortedRecords = recordMap.values.sortedBy { it.date }
 
-        // 4. Split by retention cutoff
-        val cutoffDate = LocalDate.now().minusDays(archiveMaxDays.toLong()).toString()
-        val activeRecords = sortedRecords.filter { it.date >= cutoffDate }
-        val archivedRecords = sortedRecords.filter { it.date < cutoffDate }
+        // 4. Split by retention cutoff (if archiveMaxDays <= 0, retain all in active partition)
+        val (activeRecords, archivedRecords) = if (archiveMaxDays <= 0) {
+            Pair(sortedRecords, emptyList<DailyRecord>())
+        } else {
+            val cutoffDate = LocalDate.now().minusDays(archiveMaxDays.toLong()).toString()
+            Pair(
+                sortedRecords.filter { it.date >= cutoffDate },
+                sortedRecords.filter { it.date < cutoffDate }
+            )
+        }
 
         // 5. Generate active CSV
         val activeCsv = CsvConverter.toCsvString(activeRecords, includeHeader = true)

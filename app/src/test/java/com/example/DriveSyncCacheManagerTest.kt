@@ -417,4 +417,23 @@ workout_id,date,title,start_time,end_time,duration_minutes,total_volume_kg,total
         val calDefault = healthManager.calculateEstimatedBiometrics(durationMinutes = 60, weightKg = null)
         assertEquals(385, calDefault.calories)
     }
+
+    @Test
+    fun testArchivePartitionMergeWithZeroCutoff() {
+        val oldDate1 = "2025-05-10"
+        val oldDate2 = "2025-06-15"
+        val r1 = DailyRecord(date = oldDate1, activity = ActivityMetrics(steps = 5000))
+        val r2 = DailyRecord(date = oldDate2, activity = ActivityMetrics(steps = 6000))
+
+        val result = cacheManager.mergeBiometricsCsv(
+            existingCsv = null,
+            incomingRecords = listOf(r1, r2),
+            archiveMaxDays = 0
+        )
+
+        assertEquals(2, result.totalActiveRecords)
+        assertEquals(0, result.archivedCount)
+        assertTrue(result.activeCsv.contains(oldDate1))
+        assertTrue(result.activeCsv.contains(oldDate2))
+    }
 }

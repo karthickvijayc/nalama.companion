@@ -132,7 +132,8 @@ object CsvConverter {
             sb.append(row.joinToString(",")).append("\n")
         }
 
-        return sb.toString().trimEnd()
+        val trimmed = sb.toString().trimEnd()
+        return if (trimmed.isNotEmpty()) "$trimmed\n" else ""
     }
 
     private fun escapeCsv(value: String): String {

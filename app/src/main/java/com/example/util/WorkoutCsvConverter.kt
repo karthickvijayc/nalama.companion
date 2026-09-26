@@ -186,7 +186,8 @@ object WorkoutCsvConverter {
             }
         }
 
-        return sb.toString().trimEnd()
+        val trimmed = sb.toString().trimEnd()
+        return if (trimmed.isNotEmpty()) "$trimmed\n" else ""
     }
 
     /**
