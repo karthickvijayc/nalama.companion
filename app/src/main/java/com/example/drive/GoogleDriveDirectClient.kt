@@ -130,20 +130,22 @@ class GoogleDriveDirectClient(private val context: Context) {
 
                     if (remoteMeta != null) {
                         val remoteMd5 = remoteMeta.optString("md5Checksum", "")
-                        val cachedInfo = cacheManager.getCachedFileInfo(activeCsvFileName)
-
+                        var activeCsvToUpload = mergeResult.activeCsv
+                        var activeMd5ToUpload = localActiveMd5
                         if (remoteMd5.isNotEmpty() && cachedInfo != null && remoteMd5 != cachedInfo.lastRemoteMd5) {
                             AppLogger.i("DRIVE", "Remote file was modified externally on Google Drive. Fetching and re-merging...")
                             val remoteContent = downloadRemoteFileText(activeToken, remoteMeta.getString("id"))
                             val reMerge = cacheManager.mergeBiometricsCsv(remoteContent, payload.dailyRecords, archiveMaxDays)
-                            cacheManager.writeLocalFileText(activeCsvFileName, reMerge.activeCsv)
+                            val reMergedMd5 = cacheManager.writeLocalFileText(activeCsvFileName, reMerge.activeCsv)
+                            activeCsvToUpload = reMerge.activeCsv
+                            activeMd5ToUpload = reMergedMd5
                         }
 
                         // Update the remote file in-place
                         fileId = remoteMeta.getString("id")
                         AppLogger.d("DRIVE", "Updating existing Google Drive file ID: $fileId...")
-                        val updatedMeta = updateRemoteFileMedia(activeToken, fileId, mergeResult.activeCsv, "text/csv")
-                        finalRemoteMd5 = updatedMeta.optString("md5Checksum", localActiveMd5)
+                        val updatedMeta = updateRemoteFileMedia(activeToken, fileId, activeCsvToUpload, "text/csv")
+                        finalRemoteMd5 = updatedMeta.optString("md5Checksum", activeMd5ToUpload)
                         AppLogger.s("DRIVE", "Successfully updated file $activeCsvFileName on Google Drive (ID: $fileId, MD5: $finalRemoteMd5)")
                     } else {
                         // File does not exist yet on Drive (or was deleted by user on Drive)

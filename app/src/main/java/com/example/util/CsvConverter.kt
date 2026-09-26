@@ -39,21 +39,32 @@ object CsvConverter {
      */
     fun toRowList(records: List<DailyRecord>): List<List<Any?>> {
         return records.map { record ->
+            val cleanSources = record.sources
+                .map { src ->
+                    val clean = src.replace("\"", "").trim()
+                    if (clean.startsWith("com.android.healthconnect")) "com.android.healthconnect" else clean
+                }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .joinToString(";")
+
+            val hasSleep = record.sleep.totalSleepMinutes > 0
+
             listOf(
                 record.date,
-                record.sources.joinToString(";"),
+                cleanSources,
                 record.activity.steps,
                 record.activity.distanceMeters,
                 record.activity.totalCaloriesKcal,
                 record.activity.activeCaloriesKcal,
                 record.activity.activeDurationMinutes,
                 record.activity.vo2MaxMlKgMin?.avg ?: "",
-                record.sleep.totalSleepMinutes,
-                record.sleep.lightSleepMinutes,
-                record.sleep.deepSleepMinutes,
-                record.sleep.remSleepMinutes,
-                record.sleep.awakeMinutes,
-                record.sleep.sleepEfficiencyScore,
+                if (hasSleep) record.sleep.totalSleepMinutes else "",
+                if (hasSleep) record.sleep.lightSleepMinutes else "",
+                if (hasSleep) record.sleep.deepSleepMinutes else "",
+                if (hasSleep) record.sleep.remSleepMinutes else "",
+                if (hasSleep) record.sleep.awakeMinutes else "",
+                if (hasSleep) record.sleep.sleepEfficiencyScore else "",
                 record.vitals.restingHeartRateBpm?.min ?: "",
                 record.vitals.restingHeartRateBpm?.max ?: "",
                 record.vitals.restingHeartRateBpm?.avg ?: "",
@@ -80,21 +91,32 @@ object CsvConverter {
         }
 
         for (record in records) {
+            val cleanSources = record.sources
+                .map { src ->
+                    val clean = src.replace("\"", "").trim()
+                    if (clean.startsWith("com.android.healthconnect")) "com.android.healthconnect" else clean
+                }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .joinToString(";")
+
+            val hasSleep = record.sleep.totalSleepMinutes > 0
+
             val row = listOf(
                 escapeCsv(record.date),
-                escapeCsv(record.sources.joinToString(";")),
+                escapeCsv(cleanSources),
                 record.activity.steps.toString(),
                 record.activity.distanceMeters.toString(),
                 record.activity.totalCaloriesKcal.toString(),
                 record.activity.activeCaloriesKcal.toString(),
                 record.activity.activeDurationMinutes.toString(),
                 record.activity.vo2MaxMlKgMin?.avg?.toString() ?: "",
-                record.sleep.totalSleepMinutes.toString(),
-                record.sleep.lightSleepMinutes.toString(),
-                record.sleep.deepSleepMinutes.toString(),
-                record.sleep.remSleepMinutes.toString(),
-                record.sleep.awakeMinutes.toString(),
-                record.sleep.sleepEfficiencyScore.toString(),
+                if (hasSleep) record.sleep.totalSleepMinutes.toString() else "",
+                if (hasSleep) record.sleep.lightSleepMinutes.toString() else "",
+                if (hasSleep) record.sleep.deepSleepMinutes.toString() else "",
+                if (hasSleep) record.sleep.remSleepMinutes.toString() else "",
+                if (hasSleep) record.sleep.awakeMinutes.toString() else "",
+                if (hasSleep) record.sleep.sleepEfficiencyScore.toString() else "",
                 record.vitals.restingHeartRateBpm?.min?.toString() ?: "",
                 record.vitals.restingHeartRateBpm?.max?.toString() ?: "",
                 record.vitals.restingHeartRateBpm?.avg?.toString() ?: "",
@@ -110,13 +132,17 @@ object CsvConverter {
             sb.append(row.joinToString(",")).append("\n")
         }
 
-        return sb.toString()
+        return sb.toString().trimEnd()
     }
 
     private fun escapeCsv(value: String): String {
-        if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains(";")) {
-            return "\"" + value.replace("\"", "\"\"") + "\""
+        // Strip any rogue pre-existing quotation marks to prevent exponential quote explosion
+        val clean = value.replace("\"", "").replace("\r\n", " ").replace("\n", " ").trim()
+        // Standard RFC-4180 escaping: wrap in quotes ONLY if the value contains a comma or newline
+        return if (clean.contains(",")) {
+            "\"$clean\""
+        } else {
+            clean
         }
-        return value
     }
 }

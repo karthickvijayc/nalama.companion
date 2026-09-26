@@ -49,18 +49,11 @@ object WorkoutCsvConverter {
                     workout.maxHeartRateBpm ?: "",
                     workout.caloriesActualHr ?: "",
                     "", "", "", "", "", "", "", "",
-                    workout.notes ?: ""
+                    sanitizeField(workout.notes)
                 ))
             } else {
                 for (ex in workout.exercises) {
-                    val exNotes = ex.notes?.trim()?.ifBlank { null }
-                    val wkNotes = workout.notes?.trim()?.ifBlank { null }
-                    val combinedNotes = when {
-                        exNotes != null && wkNotes != null -> "$wkNotes | $exNotes"
-                        exNotes != null -> exNotes
-                        wkNotes != null -> wkNotes
-                        else -> ""
-                    }
+                    val combinedNotes = combineNotes(workout.notes, ex.notes)
                     if (ex.sets.isEmpty()) {
                         result.add(listOf(
                             workout.workoutId,
@@ -136,19 +129,12 @@ object WorkoutCsvConverter {
                     workout.maxHeartRateBpm?.toString() ?: "",
                     workout.caloriesActualHr?.toString() ?: "",
                     "", "", "", "", "", "", "", "",
-                    escapeCsv(workout.notes ?: "")
+                    escapeCsv(sanitizeField(workout.notes))
                 )
                 sb.append(row.joinToString(",")).append("\n")
             } else {
                 for (ex in workout.exercises) {
-                    val exNotes = ex.notes?.trim()?.ifBlank { null }
-                    val wkNotes = workout.notes?.trim()?.ifBlank { null }
-                    val combinedNotes = when {
-                        exNotes != null && wkNotes != null -> "$wkNotes | $exNotes"
-                        exNotes != null -> exNotes
-                        wkNotes != null -> wkNotes
-                        else -> ""
-                    }
+                    val combinedNotes = combineNotes(workout.notes, ex.notes)
                     if (ex.sets.isEmpty()) {
                         val row = listOf(
                             escapeCsv(workout.workoutId),
@@ -203,11 +189,53 @@ object WorkoutCsvConverter {
         return sb.toString().trimEnd()
     }
 
+    /**
+     * Intelligently combines and deduplicates workout-level and exercise-level notes.
+     * Prevents runaway repetition ("note | note | note") across repeated exports.
+     */
+    fun combineNotes(wkNotes: String?, exNotes: String?): String {
+        val cleanWk = wkNotes?.let { sanitizeField(it) }?.ifBlank { null }
+        val cleanEx = exNotes?.let { sanitizeField(it) }?.ifBlank { null }
+        val rawCombined = when {
+            cleanWk != null && cleanEx != null -> {
+                if (cleanWk.equals(cleanEx, ignoreCase = true) || cleanWk.contains(cleanEx, ignoreCase = true)) {
+                    cleanWk
+                } else if (cleanEx.contains(cleanWk, ignoreCase = true)) {
+                    cleanEx
+                } else {
+                    "$cleanWk | $cleanEx"
+                }
+            }
+            cleanWk != null -> cleanWk
+            cleanEx != null -> cleanEx
+            else -> ""
+        }
+
+        if (rawCombined.contains(" | ")) {
+            val distinctParts = rawCombined.split(" | ")
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .distinct()
+            return distinctParts.joinToString(" | ")
+        }
+        return rawCombined
+    }
+
+    fun sanitizeField(value: String?): String {
+        if (value.isNullOrBlank()) return ""
+        return value.replace("\r\n", " | ")
+            .replace("\n", " | ")
+            .replace("\r", " ")
+            .replace(Regex("\\s{2,}"), " ")
+            .trim()
+    }
+
     private fun escapeCsv(value: String): String {
-        return if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
-            "\"" + value.replace("\"", "\"\"") + "\""
+        val clean = sanitizeField(value)
+        return if (clean.contains(",") || clean.contains("\"")) {
+            "\"" + clean.replace("\"", "\"\"") + "\""
         } else {
-            value
+            clean
         }
     }
 }

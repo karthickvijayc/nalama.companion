@@ -149,11 +149,12 @@ class HealthSyncWorker(
         if (isHevy) {
             val hevyFolder = TargetFolder.GYM_WORKOUTS
             val hevyManager = HevySyncManager()
+            val healthManager = HealthConnectManager(context)
             val fetchResult = hevyManager.fetchWorkouts(
                 apiKey = settings.hevyApiKey,
                 isDemoMode = settings.demoModeEnabled
             )
-            val workoutsPayload = fetchResult.getOrElse {
+            val basePayload = fetchResult.getOrElse {
                 WorkoutsExportPayload(
                     exportVersion = "1.0",
                     sourceApp = "Hevy",
@@ -161,6 +162,12 @@ class HealthSyncWorker(
                     workouts = hevyManager.getSampleWorkouts()
                 )
             }
+            val enrichedWorkouts = hevyManager.enrichWithHealthConnect(
+                workouts = basePayload.workouts,
+                healthManager = healthManager,
+                zoneId = zoneId
+            )
+            val workoutsPayload = basePayload.copy(workouts = enrichedWorkouts)
 
             val directResult = driveClient.syncWorkoutsDirectly(
                 accessToken = activeToken,

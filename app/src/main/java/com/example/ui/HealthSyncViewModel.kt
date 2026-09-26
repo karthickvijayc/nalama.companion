@@ -438,7 +438,15 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                             workouts = hevyManager.getSampleWorkouts()
                         )
                     }
-                    val workoutsPayload = payload.copy(syncedAt = now.format(DateTimeFormatter.ISO_INSTANT))
+                    val enrichedWorkouts = hevyManager.enrichWithHealthConnect(
+                        workouts = payload.workouts,
+                        healthManager = healthManager,
+                        zoneId = zoneId
+                    )
+                    val workoutsPayload = payload.copy(
+                        syncedAt = now.format(DateTimeFormatter.ISO_INSTANT),
+                        workouts = enrichedWorkouts
+                    )
                     latestWorkoutsPayload = workoutsPayload
 
                     val hevyFolder = TargetFolder.GYM_WORKOUTS
@@ -1009,13 +1017,18 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     errorSummaries.add("Hevy: $errMsg")
                 } else {
                     val allWorkouts = hevyResult.getOrNull() ?: emptyList()
+                    val enrichedWorkouts = hevyManager.enrichWithHealthConnect(
+                        workouts = allWorkouts,
+                        healthManager = healthManager,
+                        zoneId = zoneId
+                    )
                     val hevyFolder = TargetFolder.GYM_WORKOUTS
 
                     _uiState.update {
                         it.copy(
                             bulkExportState = it.bulkExportState.copy(
                                 percentage = baseProgress + (0.7f * taskWeight),
-                                statusMessage = "Uploading ${allWorkouts.size} Hevy workouts to Drive...",
+                                statusMessage = "Uploading ${enrichedWorkouts.size} Hevy workouts to Drive...",
                                 phase = "UPLOADING (Hevy)"
                             )
                         )
@@ -1025,7 +1038,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                         exportVersion = "1.0",
                         sourceApp = "Hevy",
                         syncedAt = now.format(DateTimeFormatter.ISO_INSTANT),
-                        workouts = allWorkouts
+                        workouts = enrichedWorkouts
                     )
 
                     val direct = driveClient.syncWorkoutsDirectly(

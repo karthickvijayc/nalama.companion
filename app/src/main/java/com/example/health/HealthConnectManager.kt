@@ -20,6 +20,12 @@ enum class HealthConnectAvailability {
     NOT_SUPPORTED
 }
 
+data class WorkoutBiometrics(
+    val avgHeartRateBpm: Int? = null,
+    val maxHeartRateBpm: Int? = null,
+    val calories: Int? = null
+)
+
 class HealthConnectManager(private val context: Context) {
 
     val healthConnectClient: HealthConnectClient? by lazy {
@@ -111,7 +117,7 @@ class HealthConnectManager(private val context: Context) {
             )
             for (rec in stepsResp.records) {
                 totalSteps += rec.count
-                rec.metadata.dataOrigin.packageName.let { sourcesSet.add(it) }
+                sourcesSet.add(normalizeSourcePackage(rec.metadata.dataOrigin.packageName))
             }
         } catch (_: Exception) {}
 
@@ -123,9 +129,14 @@ class HealthConnectManager(private val context: Context) {
             )
             for (rec in distResp.records) {
                 totalDistanceMeters += rec.distance.inMeters
-                rec.metadata.dataOrigin.packageName.let { sourcesSet.add(it) }
+                sourcesSet.add(normalizeSourcePackage(rec.metadata.dataOrigin.packageName))
             }
         } catch (_: Exception) {}
+
+        // Estimate walking distance if GPS distance was not logged but steps were recorded (~0.762m/step)
+        if (totalDistanceMeters == 0.0 && totalSteps > 0) {
+            totalDistanceMeters = totalSteps * 0.762
+        }
 
         // 3. Total Calories Burned
         var totalCaloriesKcal = 0.0
@@ -135,7 +146,7 @@ class HealthConnectManager(private val context: Context) {
             )
             for (rec in calResp.records) {
                 totalCaloriesKcal += rec.energy.inKilocalories
-                rec.metadata.dataOrigin.packageName.let { sourcesSet.add(it) }
+                sourcesSet.add(normalizeSourcePackage(rec.metadata.dataOrigin.packageName))
             }
         } catch (_: Exception) {}
 
@@ -147,9 +158,20 @@ class HealthConnectManager(private val context: Context) {
             )
             for (rec in actCalResp.records) {
                 activeCaloriesKcal += rec.energy.inKilocalories
-                rec.metadata.dataOrigin.packageName.let { sourcesSet.add(it) }
+                sourcesSet.add(normalizeSourcePackage(rec.metadata.dataOrigin.packageName))
             }
         } catch (_: Exception) {}
+
+        // Samsung Health writes active burn as TotalCaloriesBurnedRecord. Reconcile so active is not 0.0.
+        if (activeCaloriesKcal == 0.0 && totalCaloriesKcal > 0.0) {
+            activeCaloriesKcal = totalCaloriesKcal
+        } else if (totalCaloriesKcal == 0.0 && activeCaloriesKcal > 0.0) {
+            totalCaloriesKcal = activeCaloriesKcal
+        } else if (totalCaloriesKcal == 0.0 && totalSteps > 0) {
+            val est = (totalSteps * 0.045 * 10).roundToInt() / 10.0
+            totalCaloriesKcal = est
+            activeCaloriesKcal = est
+        }
 
         // 5. Active Duration (from Exercise Sessions)
         var activeDurationMinutes = 0L
@@ -298,7 +320,10 @@ class HealthConnectManager(private val context: Context) {
             }
         } catch (_: Exception) {}
 
-        val sourcesList = sourcesSet.toList()
+        val sourcesList = sourcesSet
+            .map { normalizeSourcePackage(it) }
+            .filter { it.isNotBlank() }
+            .distinct()
 
         return DailyRecord(
             date = date.format(DateTimeFormatter.ISO_LOCAL_DATE),
@@ -331,6 +356,14 @@ class HealthConnectManager(private val context: Context) {
                 leanBodyMassKg = leanBodyMassKg
             )
         )
+    }
+
+    fun normalizeSourcePackage(packageName: String): String {
+        val clean = packageName.replace("\"", "").trim()
+        return when {
+            clean.startsWith("com.android.healthconnect") -> "com.android.healthconnect"
+            else -> clean
+        }
     }
 
     /**
@@ -456,7 +489,9 @@ class HealthConnectManager(private val context: Context) {
                 createEmptyDailyRecord(currentDate)
             }
 
-            results.add(record)
+            if (isDemoMode || record.sources.isNotEmpty() || record.activity.steps > 0 || record.activity.totalCaloriesKcal > 0 || record.sleep.totalSleepMinutes > 0 || record.vitals.restingHeartRateBpm != null || record.bodyMeasurements.weightKg != null) {
+                results.add(record)
+            }
             currentDate = currentDate.plusDays(1)
 
             // Cooperative throttling delay: 20ms between days prevents Health Connect rate limits
@@ -464,6 +499,104 @@ class HealthConnectManager(private val context: Context) {
         }
 
         results
+    }
+
+    /**
+     * Reads correlated heart rate and calories from Health Connect for a specific workout session window.
+     */
+    suspend fun readWorkoutBiometrics(
+        date: LocalDate,
+        startTimeStr: String,
+        endTimeStr: String?,
+        durationMinutes: Int,
+        zoneId: ZoneId
+    ): WorkoutBiometrics {
+        val client = healthConnectClient
+        if (client == null || !hasAllPermissions()) {
+            return calculateEstimatedBiometrics(durationMinutes)
+        }
+
+        val startInstant = try {
+            val parts = startTimeStr.split(":")
+            date.atTime(parts[0].toInt(), parts[1].toInt()).atZone(zoneId).toInstant()
+        } catch (_: Exception) {
+            null
+        } ?: return calculateEstimatedBiometrics(durationMinutes)
+
+        val endInstant = try {
+            if (!endTimeStr.isNullOrBlank()) {
+                val parts = endTimeStr.split(":")
+                date.atTime(parts[0].toInt(), parts[1].toInt()).atZone(zoneId).toInstant()
+            } else if (durationMinutes > 0) {
+                startInstant.plusSeconds(durationMinutes * 60L)
+            } else null
+        } catch (_: Exception) {
+            null
+        } ?: if (durationMinutes > 0) startInstant.plusSeconds(durationMinutes * 60L) else null
+
+        if (endInstant == null || !endInstant.isAfter(startInstant)) {
+            return calculateEstimatedBiometrics(durationMinutes)
+        }
+
+        var avgHr: Int? = null
+        var maxHr: Int? = null
+        var calories: Int? = null
+
+        try {
+            val hrRequest = ReadRecordsRequest(
+                recordType = HeartRateRecord::class,
+                timeRangeFilter = TimeRangeFilter.between(startInstant, endInstant)
+            )
+            val hrResp = client.readRecords(hrRequest)
+            val samples = hrResp.records.flatMap { it.samples }.map { it.beatsPerMinute }
+            if (samples.isNotEmpty()) {
+                avgHr = samples.average().roundToInt()
+                maxHr = samples.maxOrNull()?.toInt()
+            }
+        } catch (_: Exception) {}
+
+        try {
+            val actCalReq = ReadRecordsRequest(
+                recordType = ActiveCaloriesBurnedRecord::class,
+                timeRangeFilter = TimeRangeFilter.between(startInstant, endInstant)
+            )
+            val actCalResp = client.readRecords(actCalReq)
+            val sumActCal = actCalResp.records.sumOf { it.energy.inKilocalories }.roundToInt()
+            if (sumActCal > 0) {
+                calories = sumActCal
+            } else {
+                val totCalReq = ReadRecordsRequest(
+                    recordType = TotalCaloriesBurnedRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(startInstant, endInstant)
+                )
+                val totCalResp = client.readRecords(totCalReq)
+                val sumTotCal = totCalResp.records.sumOf { it.energy.inKilocalories }.roundToInt()
+                if (sumTotCal > 0) {
+                    calories = sumTotCal
+                }
+            }
+        } catch (_: Exception) {}
+
+        // If no calories recorded in Health Connect, provide standard metabolic estimation
+        if (calories == null || calories <= 0) {
+            calories = if (durationMinutes > 0) {
+                // Resistance training ~6.0 kcal per minute
+                (durationMinutes * 6.0).roundToInt().coerceAtLeast(30)
+            } else null
+        }
+
+        return WorkoutBiometrics(
+            avgHeartRateBpm = avgHr,
+            maxHeartRateBpm = maxHr,
+            calories = calories
+        )
+    }
+
+    fun calculateEstimatedBiometrics(durationMinutes: Int): WorkoutBiometrics {
+        val estimatedCalories = if (durationMinutes > 0) {
+            (durationMinutes * 6.0).roundToInt().coerceAtLeast(30)
+        } else null
+        return WorkoutBiometrics(calories = estimatedCalories)
     }
 
     companion object {

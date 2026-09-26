@@ -18,6 +18,7 @@ import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
 import java.time.LocalDate
+import kotlin.math.roundToInt
 
 data class CachedFileInfo(
     val fileName: String,
@@ -243,17 +244,19 @@ class DriveSyncCacheManager(private val context: Context) {
 
         // 1. Parse existing rows if present
         if (!existingCsv.isNullOrBlank()) {
-            val lines = existingCsv.lines().filter { it.isNotBlank() }
-            if (lines.size > 1) {
+            val records = parseCsvRecords(existingCsv)
+            if (records.size > 1) {
                 // Parse existing rows back into DailyRecord shells for date deduplication
-                for (i in 1 until lines.size) {
-                    val line = lines[i]
-                    val cols = line.split(",")
+                for (i in 1 until records.size) {
+                    val cols = records[i]
                     if (cols.isNotEmpty()) {
-                        val date = cols[0].trim()
-                        if (date.isNotBlank()) {
-                            // Placeholder record preserving date
-                            recordMap[date] = parseCsvLineToDailyRecord(cols)
+                        val date = cols.getOrNull(0)?.trim() ?: ""
+                        if (!date.matches(Regex("""\d{4}-\d{2}-\d{2}"""))) {
+                            continue
+                        }
+                        val record = parseCsvLineToDailyRecord(cols)
+                        if (hasDailyData(record)) {
+                            recordMap[date] = record
                         }
                     }
                 }
@@ -265,12 +268,14 @@ class DriveSyncCacheManager(private val context: Context) {
 
         // 2. Apply incoming records with in-place intra-day upsert
         for (rec in incomingRecords) {
-            if (recordMap.containsKey(rec.date)) {
-                recordMap[rec.date] = rec
-                updatedCount++
-            } else {
-                recordMap[rec.date] = rec
-                newCount++
+            if (hasDailyData(rec)) {
+                if (recordMap.containsKey(rec.date)) {
+                    recordMap[rec.date] = rec
+                    updatedCount++
+                } else {
+                    recordMap[rec.date] = rec
+                    newCount++
+                }
             }
         }
 
@@ -325,32 +330,43 @@ class DriveSyncCacheManager(private val context: Context) {
 
         // 1. Parse existing rows if present
         if (!existingCsv.isNullOrBlank()) {
-            val lines = existingCsv.lines().filter { it.isNotBlank() }
-            if (lines.size > 1) {
-                for (i in 1 until lines.size) {
-                    val cols = parseCsvLine(lines[i])
+            val records = parseCsvRecords(existingCsv)
+            if (records.size > 1) {
+                for (i in 1 until records.size) {
+                    val cols = records[i]
                     if (cols.isNotEmpty()) {
                         val workoutId = cols.getOrNull(0)?.trim() ?: ""
                         val date = cols.getOrNull(1)?.trim() ?: ""
                         val title = cols.getOrNull(2)?.trim() ?: ""
                         val startTime = cols.getOrNull(3)?.trim() ?: ""
+
+                        // SANITY CHECK: A valid workout row MUST have a valid date in YYYY-MM-DD format!
+                        // This strictly purges corrupted ghost rows (like orphaned multiline notes).
+                        if (!date.matches(Regex("""\d{4}-\d{2}-\d{2}"""))) {
+                            continue
+                        }
+
                         val key = workoutId.ifBlank { "${date}_${startTime}_${title}" }
                         if (key.isBlank()) continue
 
                         if (!workoutMap.containsKey(key)) {
+                            val durationMin = cols.getOrNull(5)?.trim()?.toIntOrNull() ?: 0
+                            val parsedCalories = cols.getOrNull(10)?.trim()?.toIntOrNull()
+                            val initialCalories = parsedCalories ?: if (durationMin > 0) (durationMin * 6.0).toInt().coerceAtLeast(30) else null
+
                             workoutMap[key] = WorkoutItem(
                                 workoutId = workoutId,
                                 date = date,
                                 title = title,
                                 startTime = startTime,
                                 endTime = cols.getOrNull(4)?.trim()?.ifBlank { null },
-                                durationMinutes = cols.getOrNull(5)?.trim()?.toIntOrNull() ?: 0,
+                                durationMinutes = durationMin,
                                 totalVolumeKg = cols.getOrNull(6)?.trim()?.toIntOrNull() ?: 0,
                                 totalSets = cols.getOrNull(7)?.trim()?.toIntOrNull() ?: 0,
                                 avgHeartRateBpm = cols.getOrNull(8)?.trim()?.toIntOrNull(),
                                 maxHeartRateBpm = cols.getOrNull(9)?.trim()?.toIntOrNull(),
-                                caloriesActualHr = cols.getOrNull(10)?.trim()?.toIntOrNull(),
-                                notes = cols.getOrNull(19)?.trim()?.ifBlank { null }
+                                caloriesActualHr = initialCalories,
+                                notes = null
                             )
                             workoutExercisesMap[key] = mutableMapOf()
                             workoutExerciseMetaMap[key] = mutableMapOf()
@@ -385,16 +401,20 @@ class DriveSyncCacheManager(private val context: Context) {
                     }
                 }
 
-                // Attach reconstructed exercises to each workout
+                // Attach reconstructed exercises to each workout (auto-healing missing metadata)
+                val hevyManager = com.example.health.HevySyncManager()
                 for ((key, workout) in workoutMap) {
                     val exercisesForWorkout = workoutExercisesMap[key] ?: emptyMap()
                     val exerciseList = exercisesForWorkout.map { (exName, sets) ->
-                        val (muscle, equip) = workoutExerciseMetaMap[key]?.get(exName) ?: Pair(null, null)
+                        val (rawMuscle, rawEquip) = workoutExerciseMetaMap[key]?.get(exName) ?: Pair(null, null)
                         val exNote = workoutExerciseNotesMap[key]?.get(exName)
+                        val inferred = hevyManager.inferMuscleGroupAndEquipment(exName)
+                        val finalMuscle = if (!rawMuscle.isNullOrBlank()) rawMuscle else inferred.first
+                        val finalEquip = if (!rawEquip.isNullOrBlank()) rawEquip else inferred.second
                         WorkoutExercise(
                             exerciseName = exName,
-                            targetMuscleGroup = muscle,
-                            equipment = equip,
+                            targetMuscleGroup = finalMuscle,
+                            equipment = finalEquip,
                             sets = sets,
                             notes = exNote
                         )
@@ -455,6 +475,58 @@ class DriveSyncCacheManager(private val context: Context) {
         )
     }
 
+    /**
+     * Quote-aware CSV record parser that handles multiline fields and standard CSV escaping.
+     */
+    fun parseCsvRecords(csvText: String): List<List<String>> {
+        val records = mutableListOf<List<String>>()
+        val currentCols = mutableListOf<String>()
+        val currentField = java.lang.StringBuilder()
+        var inQuotes = false
+        var i = 0
+        val len = csvText.length
+
+        while (i < len) {
+            val c = csvText[i]
+            when {
+                c == '\"' -> {
+                    if (inQuotes && i + 1 < len && csvText[i + 1] == '\"') {
+                        currentField.append('\"')
+                        i++
+                    } else {
+                        inQuotes = !inQuotes
+                    }
+                }
+                c == ',' && !inQuotes -> {
+                    currentCols.add(currentField.toString())
+                    currentField.setLength(0)
+                }
+                (c == '\n' || c == '\r') && !inQuotes -> {
+                    if (c == '\r' && i + 1 < len && csvText[i + 1] == '\n') {
+                        i++
+                    }
+                    currentCols.add(currentField.toString())
+                    currentField.setLength(0)
+                    if (currentCols.any { it.isNotBlank() }) {
+                        records.add(currentCols.toList())
+                    }
+                    currentCols.clear()
+                }
+                else -> {
+                    currentField.append(c)
+                }
+            }
+            i++
+        }
+        if (currentField.isNotEmpty() || currentCols.isNotEmpty()) {
+            currentCols.add(currentField.toString())
+            if (currentCols.any { it.isNotBlank() }) {
+                records.add(currentCols.toList())
+            }
+        }
+        return records
+    }
+
     fun parseCsvLine(line: String): List<String> {
         val result = mutableListOf<String>()
         val sb = java.lang.StringBuilder()
@@ -485,13 +557,51 @@ class DriveSyncCacheManager(private val context: Context) {
         return result
     }
 
+    fun hasDailyData(record: DailyRecord): Boolean {
+        return record.sources.isNotEmpty() ||
+                record.activity.steps > 0 ||
+                record.activity.totalCaloriesKcal > 0.0 ||
+                record.activity.activeCaloriesKcal > 0.0 ||
+                record.activity.activeDurationMinutes > 0 ||
+                record.sleep.totalSleepMinutes > 0 ||
+                record.vitals.restingHeartRateBpm != null ||
+                record.vitals.heartRateVariabilityMs != null ||
+                record.vitals.oxygenSaturationPct != null ||
+                record.vitals.bloodPressureMmHg != null ||
+                record.bodyMeasurements.weightKg != null
+    }
+
     private fun parseCsvLineToDailyRecord(cols: List<String>): DailyRecord {
         val date = cols.getOrNull(0)?.trim() ?: LocalDate.now().toString()
-        val sources = cols.getOrNull(1)?.trim()?.split(";")?.filter { it.isNotBlank() } ?: emptyList()
+        val rawSources = cols.getOrNull(1)?.trim() ?: ""
+        val sources = rawSources
+            .replace("\"", "")
+            .split(";")
+            .map { src ->
+                val clean = src.trim()
+                if (clean.startsWith("com.android.healthconnect")) "com.android.healthconnect" else clean
+            }
+            .filter { it.isNotBlank() }
+            .distinct()
+
         val steps = cols.getOrNull(2)?.trim()?.toLongOrNull() ?: 0L
-        val distance = cols.getOrNull(3)?.trim()?.toDoubleOrNull() ?: 0.0
-        val totalCalories = cols.getOrNull(4)?.trim()?.toDoubleOrNull() ?: 0.0
-        val activeCalories = cols.getOrNull(5)?.trim()?.toDoubleOrNull() ?: 0.0
+        var distance = cols.getOrNull(3)?.trim()?.toDoubleOrNull() ?: 0.0
+        if (distance == 0.0 && steps > 0) {
+            distance = ((steps * 0.762) * 10).roundToInt() / 10.0
+        }
+
+        var totalCalories = cols.getOrNull(4)?.trim()?.toDoubleOrNull() ?: 0.0
+        var activeCalories = cols.getOrNull(5)?.trim()?.toDoubleOrNull() ?: 0.0
+        if (activeCalories == 0.0 && totalCalories > 0.0) {
+            activeCalories = totalCalories
+        } else if (totalCalories == 0.0 && activeCalories > 0.0) {
+            totalCalories = activeCalories
+        } else if (totalCalories == 0.0 && steps > 0) {
+            val est = ((steps * 0.045) * 10).roundToInt() / 10.0
+            totalCalories = est
+            activeCalories = est
+        }
+
         val activeDuration = cols.getOrNull(6)?.trim()?.toLongOrNull() ?: 0L
         val vo2Max = cols.getOrNull(7)?.trim()?.toDoubleOrNull()?.let { ValueAvg(it) }
 
