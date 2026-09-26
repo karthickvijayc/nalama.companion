@@ -1,7 +1,10 @@
 package com.example.ui.screens
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -21,23 +25,32 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.health.HealthConnectAvailability
 import com.example.model.SyncSourceApp
+import com.example.model.WriteMode
 import com.example.ui.HealthSyncUiState
+import com.example.ui.components.BulkExportProgressDialog
 import com.example.util.CertificateHelper
 
 @Composable
 fun SettingsScreen(
     uiState: HealthSyncUiState,
-    onUpdateSourceApp: (SyncSourceApp) -> Unit,
-    onUpdateHevyApiKey: (String) -> Unit,
-    onTestDriveConnection: () -> Unit,
-    onDismissTestResult: () -> Unit,
-    onUpdateSyncInterval: (Int) -> Unit,
-    onUpdateAutoSync: (Boolean) -> Unit,
-    onUpdateCustomFolderPath: (String) -> Unit,
-    onUpdateTimezone: (String) -> Unit,
-    onToggleDemoMode: (Boolean) -> Unit,
-    onRequestHealthPermissions: () -> Unit,
+    onUpdateHealthConnectEnabled: (Boolean) -> Unit = {},
+    onUpdateHevyEnabled: (Boolean) -> Unit = {},
+    onUpdateSourceApp: (SyncSourceApp) -> Unit = {},
+    onUpdateHevyApiKey: (String) -> Unit = {},
+    onWriteModeSelected: (WriteMode) -> Unit = {},
+    onExportNow: () -> Unit = {},
+    onDismissExportResult: () -> Unit = {},
+    onDismissBulkExportDialog: () -> Unit = {},
+    onTestDriveConnection: () -> Unit = {},
+    onDismissTestResult: () -> Unit = {},
+    onUpdateSyncInterval: (Int) -> Unit = {},
+    onUpdateAutoSync: (Boolean) -> Unit = {},
+    onUpdateCustomFolderPath: (String) -> Unit = {},
+    onUpdateTimezone: (String) -> Unit = {},
+    onToggleDemoMode: (Boolean) -> Unit = {},
+    onRequestHealthPermissions: () -> Unit = {},
     onRequestGoogleSignIn: () -> Unit = {},
     onAuthorizeDrive: () -> Unit = {},
     onVerifyAndSaveOAuthToken: (String, (Boolean, String) -> Unit) -> Unit = { _, _ -> },
@@ -60,6 +73,7 @@ fun SettingsScreen(
     var manualTokenInput by remember { mutableStateOf("") }
     var manualTokenVerifying by remember { mutableStateOf(false) }
     var manualTokenFeedback by remember { mutableStateOf<String?>(null) }
+    var isAdvancedOptionsExpanded by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -68,7 +82,7 @@ fun SettingsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Section: Google Account & Drive Storage
+        // Section 1: Google Account & Drive Storage
         SettingsCard(title = "Google Account & Drive", icon = Icons.Default.CloudQueue) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -133,37 +147,30 @@ fun SettingsScreen(
 
             if (uiState.settings.isGoogleConnected) {
                 if (hasDriveToken || uiState.settings.demoModeEnabled) {
-                    // Connected Google Drive Status Pill
+                    // Simple Green "Connected" Badge
                     Surface(
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(8.dp),
                         color = Color(0xFFE6F4EA),
                         border = BorderStroke(1.dp, Color(0xFFCEEAD6)),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.testTag("google_drive_connected_badge")
                     ) {
                         Row(
-                            modifier = Modifier.padding(10.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = null,
                                 tint = Color(0xFF137333),
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Google Drive Sync Active (BYOS)",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF137333)
-                                )
-                                Text(
-                                    text = "100% Private. Files sync directly to your personal Google account (${uiState.settings.connectedEmail}).",
-                                    fontSize = 11.sp,
-                                    color = Color(0xFF137333)
-                                )
-                            }
+                            Text(
+                                text = "Connected",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = Color(0xFF137333)
+                            )
                         }
                     }
                 } else {
@@ -312,48 +319,6 @@ fun SettingsScreen(
                     }
                 }
 
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = "Google Drive Folder",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = uiState.settings.customFolderPath.ifBlank { uiState.settings.targetFolder.folderPath },
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = "Saves your health data as easy-to-open CSV files directly in your Drive.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        try {
-                            uriHandler.openUri("https://drive.google.com/drive/my-drive")
-                        } catch (_: Exception) {}
-                    },
-                    modifier = Modifier.fillMaxWidth().testTag("open_gdrive_button")
-                ) {
-                    Icon(Icons.Default.CloudQueue, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Open Google Drive", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                }
-
                 // Verify Drive Connection Button
                 Button(
                     onClick = onTestDriveConnection,
@@ -430,196 +395,418 @@ fun SettingsScreen(
             }
         }
 
-        // Section: Diagnostics & Tester Tools
-        SettingsCard(title = "Diagnostics & Tester Tools", icon = Icons.Default.BugReport) {
+        // Section 2: Sync Sources (Multi-Source Management)
+        SettingsCard(title = "Sync Sources", icon = Icons.Default.Apps) {
             Text(
-                text = "Troubleshooting tools for testers. Inspect live logs, run direct Drive API checks, or reset cache if remote files were deleted.",
+                text = "Enable the fitness sources you want to back up to Google Drive and configure their settings:",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            // Cache Summary Info Pill
+            // Source 1: Health Connect
+            val isHcOk = uiState.healthAvailability == HealthConnectAvailability.AVAILABLE && uiState.hasPermissions
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier.padding(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(Icons.Default.Storage, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                    Text(
-                        text = "Local sync cache: ${uiState.cacheSummary.fileCount} file(s) tracked",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontSize = 11.5.sp
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = onOpenDiagnostics,
-                    modifier = Modifier.weight(1.3f).testTag("open_diagnostics_console_btn")
-                ) {
-                    Icon(Icons.Default.Terminal, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Live Logs & Console", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-
-                OutlinedButton(
-                    onClick = onClearCache,
-                    modifier = Modifier.weight(1f).testTag("settings_reset_cache_btn")
-                ) {
-                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(15.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Reset Cache", fontSize = 12.sp)
-                }
-            }
-        }
-
-        // Section: Source App Selection
-        SettingsCard(title = "Primary Sync Source", icon = Icons.Default.Apps) {
-            Text(
-                text = "Choose which fitness app to sync to Google Drive:",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                SyncSourceApp.values().forEach { app ->
-                    val isSelected = uiState.settings.sourceApp == app
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { onUpdateSourceApp(app) },
-                        label = {
-                            Text(
-                                text = app.displayName,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = if (app == SyncSourceApp.HEVY) Icons.Default.FitnessCenter else Icons.Default.Favorite,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("settings_source_${app.id}")
-                    )
-                }
-            }
-
-            if (uiState.settings.sourceApp == SyncSourceApp.HEVY) {
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = hevyApiKeyInput,
-                    onValueChange = {
-                        hevyApiKeyInput = it
-                        onUpdateHevyApiKey(it)
-                    },
-                    label = { Text("Hevy API Key") },
-                    placeholder = { Text("Enter Hevy Personal API Key") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("hevy_api_key_input"),
-                    singleLine = true,
-                    supportingText = {
-                        Text(
-                            text = if (hevyApiKeyInput.isBlank()) "API key required to fetch workouts from your account." else "Configured",
-                            fontSize = 11.sp
-                        )
-                    },
-                    trailingIcon = {
-                        if (hevyApiKeyInput.isNotBlank()) {
-                            IconButton(onClick = {
-                                hevyApiKeyInput = ""
-                                onUpdateHevyApiKey("")
-                            }) {
-                                Icon(Icons.Default.Clear, contentDescription = "Clear")
-                            }
-                        }
-                    }
-                )
-
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("hevy_pro_developer_card")
-                ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Icon(
-                                Icons.Default.VpnKey,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = "Hevy Pro Required",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.primaryContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Favorite,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "Android Health Connect",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = "Steps, sleep, heart rate, BP, and vitals",
+                                    fontSize = 11.5.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = uiState.settings.isHealthConnectEnabled,
+                            onCheckedChange = onUpdateHealthConnectEnabled,
+                            modifier = Modifier.testTag("health_connect_enable_switch")
+                        )
+                    }
+
+                    if (uiState.settings.isHealthConnectEnabled) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (isHcOk || uiState.settings.demoModeEnabled) Color(0xFFE6F4EA) else Color(0xFFFEF7E0),
+                                border = BorderStroke(1.dp, if (isHcOk || uiState.settings.demoModeEnabled) Color(0xFFCEEAD6) else Color(0xFFFEEFC3))
+                            ) {
+                                Text(
+                                    text = if (uiState.settings.demoModeEnabled) "Demo Mode (Mock data)" else if (isHcOk) "Permissions Granted" else "Permissions Needed",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isHcOk || uiState.settings.demoModeEnabled) Color(0xFF137333) else Color(0xFFB06000),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+
+                            if (!isHcOk && !uiState.settings.demoModeEnabled) {
+                                Button(
+                                    onClick = onRequestHealthPermissions,
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                    modifier = Modifier.testTag("settings_grant_hc_perms_btn")
+                                ) {
+                                    Text("Grant Permissions", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
 
-                        Text(
-                            text = "To generate an API key for your account, access your developer settings on Hevy:",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
                         OutlinedButton(
-                            onClick = {
-                                try {
-                                    uriHandler.openUri("https://hevy.com/settings?developer")
-                                } catch (_: Exception) {}
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("open_hevy_developer_portal_btn")
+                            onClick = onOpenHealthConnectSettings,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth().testTag("open_hc_settings_btn")
                         ) {
-                            Icon(
-                                Icons.Default.OpenInNew,
-                                contentDescription = null,
-                                modifier = Modifier.size(15.dp)
-                            )
+                            Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(15.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Open hevy.com/settings?developer", fontSize = 12.sp)
+                            Text("Health Connect Permissions & Settings", fontSize = 11.5.sp)
                         }
                     }
                 }
-            } else {
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedButton(
-                    onClick = onOpenHealthConnectSettings,
-                    modifier = Modifier.fillMaxWidth().testTag("open_hc_settings_btn")
+            }
+
+            // Source 2: Hevy Workouts
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Health Connect Permissions & Settings", fontSize = 12.sp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FitnessCenter,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "Hevy Gym Workouts",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = "Exercises, weights (kg), reps, sets, RPE",
+                                    fontSize = 11.5.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = uiState.settings.isHevyEnabled,
+                            onCheckedChange = onUpdateHevyEnabled,
+                            modifier = Modifier.testTag("hevy_enable_switch")
+                        )
+                    }
+
+                    if (uiState.settings.isHevyEnabled) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+                        OutlinedTextField(
+                            value = hevyApiKeyInput,
+                            onValueChange = {
+                                hevyApiKeyInput = it
+                                onUpdateHevyApiKey(it)
+                            },
+                            label = { Text("Hevy API Key") },
+                            placeholder = { Text("Enter Hevy Personal API Key") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("hevy_api_key_input"),
+                            singleLine = true,
+                            supportingText = {
+                                Text(
+                                    text = if (hevyApiKeyInput.isBlank()) "API key required to fetch workouts from your account." else "Configured",
+                                    fontSize = 11.sp,
+                                    color = if (hevyApiKeyInput.isBlank()) Color(0xFFB06000) else Color(0xFF137333)
+                                )
+                            },
+                            trailingIcon = {
+                                if (hevyApiKeyInput.isNotBlank()) {
+                                    IconButton(onClick = {
+                                        hevyApiKeyInput = ""
+                                        onUpdateHevyApiKey("")
+                                    }) {
+                                        Icon(Icons.Default.Clear, contentDescription = "Clear")
+                                    }
+                                }
+                            }
+                        )
+
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth().testTag("hevy_pro_developer_card")
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.VpnKey,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "Hevy Pro Required for API Access",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontSize = 12.sp
+                                    )
+                                }
+
+                                Text(
+                                    text = "Generate your personal API key on the Hevy developer settings page:",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 11.sp
+                                )
+
+                                OutlinedButton(
+                                    onClick = {
+                                        try {
+                                            uriHandler.openUri("https://hevy.com/settings?developer")
+                                        } catch (_: Exception) {}
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth().testTag("open_hevy_developer_portal_btn")
+                                ) {
+                                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Open hevy.com/settings?developer", fontSize = 11.5.sp)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        // Section: Sync Schedule & Frequency
+        // Section 3: Sync Controls (Merged from Dashboard)
+        SettingsCard(title = "Sync Controls", icon = Icons.Default.CloudSync) {
+            Text(
+                text = "Manual sync and historical export for all enabled sources:",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // Write Mode (Update vs Overwrite)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = "Save Mode",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    WriteMode.values().forEach { mode ->
+                        val isSelected = uiState.settings.writeMode == mode
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onWriteModeSelected(mode) },
+                            label = {
+                                Text(
+                                    text = mode.displayName,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            leadingIcon = if (isSelected) {
+                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            } else null,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("write_mode_chip_${mode.name.lowercase()}")
+                        )
+                    }
+                }
+                Text(
+                    text = uiState.settings.writeMode.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    fontSize = 11.sp
+                )
+            }
+
+            // Action Buttons: Sync Now & Bulk Export
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onExportNow,
+                    enabled = !uiState.isExporting,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .testTag("export_now_button"),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    if (uiState.isExporting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("Syncing all enabled sources...", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.CloudUpload,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Sync Now to Google Drive",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = onBulkExport,
+                    enabled = !uiState.isExporting,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp)
+                        .testTag("bulk_export_button"),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Backup,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Sync Full History to Drive",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+
+            // Last Export Result Banner
+            uiState.lastExportResult?.let { result ->
+                Surface(
+                    color = if (result.isSuccess) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth().testTag("settings_export_result_banner")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = if (result.isSuccess) Icons.Default.CheckCircle else Icons.Default.Error,
+                                contentDescription = null,
+                                tint = if (result.isSuccess) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = if (result.isSuccess) "Sync Succeeded" else "Sync Notice",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (result.isSuccess) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                Text(
+                                    text = result.message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 11.5.sp,
+                                    color = if (result.isSuccess) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
+                        IconButton(onClick = onDismissExportResult, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+            }
+        }
+
+        // Section 4: Sync Schedule & Frequency
         SettingsCard(title = "Schedule & Frequency", icon = Icons.Default.Timer) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -633,7 +820,7 @@ fun SettingsScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = "Automatically backs up health records to Drive",
+                        text = "Automatically backs up active health and workout records to Drive",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -678,30 +865,7 @@ fun SettingsScreen(
             }
         }
 
-        // Section: Bulk History Sync
-        SettingsCard(title = "Historical Sync", icon = Icons.Default.Backup) {
-            Text(
-                text = "Export your past health records and workout history to Google Drive as CSV files.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Button(
-                onClick = onBulkExport,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Backup,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Sync Full History to Drive", fontWeight = FontWeight.SemiBold)
-            }
-        }
-
-        // Section: About Nalama Platform
+        // Section 5: About Nalama Platform
         SettingsCard(title = "About Nalama", icon = Icons.Default.Info) {
             Text(
                 text = "Nalama Health Companion securely bridges your fitness metrics and workout logs into your personal Google Drive in CSV format.",
@@ -736,6 +900,116 @@ fun SettingsScreen(
                     Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("nalama.ai.studio", fontSize = 12.sp)
+                }
+            }
+        }
+
+        // Section 6: Advanced Options (Collapsible header at bottom)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("advanced_options_card"),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { isAdvancedOptionsExpanded = !isAdvancedOptionsExpanded },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "Advanced Options",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Diagnostics, tester logs, and cache controls",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    IconButton(onClick = { isAdvancedOptionsExpanded = !isAdvancedOptionsExpanded }) {
+                        Icon(
+                            imageVector = if (isAdvancedOptionsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = if (isAdvancedOptionsExpanded) "Collapse" else "Expand"
+                        )
+                    }
+                }
+
+                AnimatedVisibility(visible = isAdvancedOptionsExpanded) {
+                    Column(
+                        modifier = Modifier.padding(top = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "Troubleshooting tools for testers. Inspect live logs, run direct Drive API checks, or reset cache if remote files were deleted.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        // Cache Summary Info Pill
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.Storage, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                Text(
+                                    text = "Local sync cache: ${uiState.cacheSummary.fileCount} file(s) tracked",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 11.5.sp
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = onOpenDiagnostics,
+                                modifier = Modifier.weight(1.3f).testTag("open_diagnostics_console_btn")
+                            ) {
+                                Icon(Icons.Default.Terminal, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Live Logs & Console", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            OutlinedButton(
+                                onClick = onClearCache,
+                                modifier = Modifier.weight(1f).testTag("settings_reset_cache_btn")
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Reset Cache", fontSize = 12.sp)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -809,6 +1083,20 @@ fun SettingsScreen(
                     Text("Cancel")
                 }
             }
+        )
+    }
+
+    // Bulk Export Progress Dialog - shows immediately right here in Settings when triggered!
+    if (uiState.bulkExportState.isRunning || uiState.bulkExportState.isCompleted || uiState.bulkExportState.error != null) {
+        val enabledSourcesText = buildList {
+            if (uiState.settings.isHealthConnectEnabled) add("Health Connect")
+            if (uiState.settings.isHevyEnabled) add("Hevy")
+        }.joinToString(" & ").ifEmpty { "Enabled Sources" }
+
+        BulkExportProgressDialog(
+            bulkState = uiState.bulkExportState,
+            sourceAppName = enabledSourcesText,
+            onDismiss = onDismissBulkExportDialog
         )
     }
 }

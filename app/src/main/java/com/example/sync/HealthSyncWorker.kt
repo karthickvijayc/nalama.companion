@@ -39,16 +39,20 @@ class HealthSyncWorker(
         val formattedNow = now.format(DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm:ss"))
         val isManual = inputData.getBoolean("is_manual", false)
 
+        val isHc = settings.isHealthConnectEnabled
+        val isHevy = settings.isHevyEnabled
+
         AppLogger.i(
             "WORKER",
-            "Background sync started [${if (isManual) "Manual" else "Scheduled"}] - Source: ${settings.sourceApp.displayName}, Token present: ${settings.googleOAuthAccessToken.isNotBlank()}"
+            "Background sync started [${if (isManual) "Manual" else "Scheduled"}] - HC: $isHc, Hevy: $isHevy, Token present: ${settings.googleOAuthAccessToken.isNotBlank()}"
         )
 
-        val folderPath = settings.customFolderPath.ifBlank { settings.targetFolder.folderPath }
-        val subfolder = settings.targetFolder.subfolder
-        val defaultFileName = settings.targetFolder.defaultFileName
-        val driveClient = GoogleDriveDirectClient(context)
+        if (!isHc && !isHevy) {
+            AppLogger.d("WORKER", "No sync sources enabled. Background sync finished.")
+            return Result.success()
+        }
 
+        val driveClient = GoogleDriveDirectClient(context)
         val userEmail = settings.connectedEmail.ifBlank { null }
         var activeToken = settings.googleOAuthAccessToken.ifBlank { null }
         if (activeToken.isNullOrBlank() && !userEmail.isNullOrBlank()) {
@@ -64,73 +68,14 @@ class HealthSyncWorker(
             }
         }
 
-        if (settings.sourceApp == SyncSourceApp.HEVY) {
-            val hevyManager = HevySyncManager()
-            val fetchResult = hevyManager.fetchWorkouts(
-                apiKey = settings.hevyApiKey,
-                isDemoMode = settings.demoModeEnabled
-            )
-            val workoutsPayload = fetchResult.getOrElse {
-                WorkoutsExportPayload(
-                    exportVersion = "1.0",
-                    sourceApp = "Hevy",
-                    syncedAt = ZonedDateTime.now().format(DateTimeFormatter.ISO_INSTANT),
-                    workouts = hevyManager.getSampleWorkouts()
-                )
-            }
+        val successSummaries = mutableListOf<String>()
+        val errorSummaries = mutableListOf<String>()
+        var anySuccess = false
+        var anyLocalFallback = false
 
-            val directResult = driveClient.syncWorkoutsDirectly(
-                accessToken = activeToken,
-                payload = workoutsPayload,
-                folderPath = folderPath,
-                targetSubfolder = subfolder,
-                fileName = defaultFileName,
-                writeMode = settings.writeMode,
-                archiveMaxDays = settings.archiveMaxDays,
-                isDemoMode = settings.demoModeEnabled,
-                userEmail = userEmail
-            )
-
-            val csvPreview = WorkoutCsvConverter.toCsvString(workoutsPayload.workouts, settings.writeMode == WriteMode.OVERWRITE)
-
-            val status = when {
-                directResult.isSuccess -> ExportStatus.SUCCESS
-                directResult.isLocalOnlyFallback -> ExportStatus.LOCAL_ONLY
-                else -> ExportStatus.FAILED
-            }
-
-            val historyItem = ExportHistoryItem(
-                id = UUID.randomUUID().toString(),
-                timestamp = startTime,
-                formattedDate = formattedNow,
-                status = status,
-                writeMode = settings.writeMode,
-                folderPath = folderPath,
-                recordsCount = workoutsPayload.workouts.size,
-                message = directResult.message,
-                payloadPreviewCsv = csvPreview,
-                isManualTrigger = isManual,
-                sourceApp = "Hevy",
-                targetFolderUrl = directResult.targetFolderUrl
-            )
-
-            historyStore.addHistoryItem(historyItem)
-            prefs.recordSyncOutcome(
-                timestamp = startTime,
-                status = if (directResult.isSuccess) "Exported ${workoutsPayload.workouts.size} Hevy workout(s) to $folderPath" else directResult.message,
-                isSuccess = directResult.isSuccess
-            )
-
-            if (directResult.isSuccess) {
-                AppLogger.s("WORKER", "Background workout sync succeeded: ${workoutsPayload.workouts.size} workouts exported.")
-                showNotification("Workout Sync Succeeded", "Synced ${workoutsPayload.workouts.size} workout(s) to Google Drive.")
-                return Result.success()
-            } else {
-                AppLogger.w("WORKER", "Background workout sync notice: ${directResult.message}")
-                showNotification("Workout Sync Notice", directResult.message)
-                return if (directResult.isLocalOnlyFallback) Result.success() else Result.retry()
-            }
-        } else {
+        // 1. Health Connect background sync
+        if (isHc) {
+            val hcFolder = TargetFolder.HEALTH_DATA
             val healthManager = HealthConnectManager(context)
             val today = now.toLocalDate()
 
@@ -157,9 +102,9 @@ class HealthSyncWorker(
             val directResult = driveClient.syncBiometricsDirectly(
                 accessToken = activeToken,
                 payload = exportPayload,
-                folderPath = folderPath,
-                targetSubfolder = subfolder,
-                fileName = defaultFileName,
+                folderPath = hcFolder.folderPath,
+                targetSubfolder = hcFolder.subfolder,
+                fileName = hcFolder.defaultFileName,
                 writeMode = settings.writeMode,
                 archiveMaxDays = settings.archiveMaxDays,
                 isDemoMode = settings.demoModeEnabled,
@@ -169,42 +114,132 @@ class HealthSyncWorker(
             val csvPreview = CsvConverter.toCsvString(exportPayload.dailyRecords, settings.writeMode == WriteMode.OVERWRITE)
 
             val status = when {
-                directResult.isSuccess -> ExportStatus.SUCCESS
-                directResult.isLocalOnlyFallback -> ExportStatus.LOCAL_ONLY
+                directResult.isSuccess -> { anySuccess = true; ExportStatus.SUCCESS }
+                directResult.isLocalOnlyFallback -> { anyLocalFallback = true; ExportStatus.LOCAL_ONLY }
                 else -> ExportStatus.FAILED
             }
 
-            val historyItem = ExportHistoryItem(
-                id = UUID.randomUUID().toString(),
-                timestamp = startTime,
-                formattedDate = formattedNow,
-                status = status,
-                writeMode = settings.writeMode,
-                folderPath = folderPath,
-                recordsCount = dailyRecords.size,
-                message = directResult.message,
-                payloadPreviewCsv = csvPreview,
-                isManualTrigger = isManual,
-                sourceApp = "HealthConnect",
-                targetFolderUrl = directResult.targetFolderUrl
-            )
-
-            historyStore.addHistoryItem(historyItem)
-            prefs.recordSyncOutcome(
-                timestamp = startTime,
-                status = if (directResult.isSuccess) "Exported ${dailyRecords.size} health record(s) to $folderPath" else directResult.message,
-                isSuccess = directResult.isSuccess
+            historyStore.addHistoryItem(
+                ExportHistoryItem(
+                    id = UUID.randomUUID().toString(),
+                    timestamp = startTime,
+                    formattedDate = formattedNow,
+                    status = status,
+                    writeMode = settings.writeMode,
+                    folderPath = hcFolder.folderPath,
+                    recordsCount = dailyRecords.size,
+                    message = directResult.message,
+                    payloadPreviewCsv = csvPreview,
+                    isManualTrigger = isManual,
+                    sourceApp = "HealthConnect",
+                    targetFolderUrl = directResult.targetFolderUrl
+                )
             )
 
             if (directResult.isSuccess) {
-                AppLogger.s("WORKER", "Background health sync succeeded: ${dailyRecords.size} records exported.")
-                showNotification("Health Sync Succeeded", "Synced ${dailyRecords.size} record(s) to Google Drive.")
-                return Result.success()
+                successSummaries.add("Health Connect (${dailyRecords.size} record)")
+            } else if (directResult.isLocalOnlyFallback) {
+                successSummaries.add("Health Connect (saved locally)")
             } else {
-                AppLogger.w("WORKER", "Background health sync notice: ${directResult.message}")
-                showNotification("Health Sync Notice", directResult.message)
-                return if (directResult.isLocalOnlyFallback) Result.success() else Result.retry()
+                errorSummaries.add("Health Connect: ${directResult.message}")
             }
+        }
+
+        // 2. Hevy background sync
+        if (isHevy) {
+            val hevyFolder = TargetFolder.GYM_WORKOUTS
+            val hevyManager = HevySyncManager()
+            val fetchResult = hevyManager.fetchWorkouts(
+                apiKey = settings.hevyApiKey,
+                isDemoMode = settings.demoModeEnabled
+            )
+            val workoutsPayload = fetchResult.getOrElse {
+                WorkoutsExportPayload(
+                    exportVersion = "1.0",
+                    sourceApp = "Hevy",
+                    syncedAt = ZonedDateTime.now().format(DateTimeFormatter.ISO_INSTANT),
+                    workouts = hevyManager.getSampleWorkouts()
+                )
+            }
+
+            val directResult = driveClient.syncWorkoutsDirectly(
+                accessToken = activeToken,
+                payload = workoutsPayload,
+                folderPath = hevyFolder.folderPath,
+                targetSubfolder = hevyFolder.subfolder,
+                fileName = hevyFolder.defaultFileName,
+                writeMode = settings.writeMode,
+                archiveMaxDays = settings.archiveMaxDays,
+                isDemoMode = settings.demoModeEnabled,
+                userEmail = userEmail
+            )
+
+            val csvPreview = WorkoutCsvConverter.toCsvString(workoutsPayload.workouts, settings.writeMode == WriteMode.OVERWRITE)
+
+            val status = when {
+                directResult.isSuccess -> { anySuccess = true; ExportStatus.SUCCESS }
+                directResult.isLocalOnlyFallback -> { anyLocalFallback = true; ExportStatus.LOCAL_ONLY }
+                else -> ExportStatus.FAILED
+            }
+
+            historyStore.addHistoryItem(
+                ExportHistoryItem(
+                    id = UUID.randomUUID().toString(),
+                    timestamp = startTime,
+                    formattedDate = formattedNow,
+                    status = status,
+                    writeMode = settings.writeMode,
+                    folderPath = hevyFolder.folderPath,
+                    recordsCount = workoutsPayload.workouts.size,
+                    message = directResult.message,
+                    payloadPreviewCsv = csvPreview,
+                    isManualTrigger = isManual,
+                    sourceApp = "Hevy",
+                    targetFolderUrl = directResult.targetFolderUrl
+                )
+            )
+
+            if (directResult.isSuccess) {
+                successSummaries.add("Hevy (${workoutsPayload.workouts.size} workouts)")
+            } else if (directResult.isLocalOnlyFallback) {
+                successSummaries.add("Hevy (saved locally)")
+            } else {
+                errorSummaries.add("Hevy: ${directResult.message}")
+            }
+        }
+
+        val isOverallSuccess = anySuccess || (anyLocalFallback && errorSummaries.isEmpty())
+        val outcomeMsg = buildString {
+            if (successSummaries.isNotEmpty()) {
+                append("Exported ")
+                append(successSummaries.joinToString(" and "))
+                append(" to Google Drive.")
+            }
+            if (errorSummaries.isNotEmpty()) {
+                if (isNotEmpty()) append(" ")
+                append("Notices: ")
+                append(errorSummaries.joinToString("; "))
+            }
+        }
+
+        prefs.recordSyncOutcome(
+            timestamp = startTime,
+            status = outcomeMsg,
+            isSuccess = isOverallSuccess
+        )
+
+        if (anySuccess) {
+            AppLogger.s("WORKER", "Background sync completed: $outcomeMsg")
+            showNotification("Sync Succeeded", outcomeMsg)
+            return Result.success()
+        } else if (anyLocalFallback && errorSummaries.isEmpty()) {
+            AppLogger.i("WORKER", "Background sync saved locally: $outcomeMsg")
+            showNotification("Sync Saved Locally", outcomeMsg)
+            return Result.success()
+        } else {
+            AppLogger.w("WORKER", "Background sync notice: $outcomeMsg")
+            showNotification("Sync Notice", outcomeMsg)
+            return if (anyLocalFallback) Result.success() else Result.retry()
         }
     }
 

@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,9 +15,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.AppSettings
 import com.example.health.HealthConnectAvailability
 import com.example.model.SyncSourceApp
 import com.example.model.TargetFolder
@@ -30,14 +31,14 @@ fun DashboardScreen(
     onRequestHealthPermissions: () -> Unit,
     onRequestGoogleSignIn: () -> Unit = {},
     onAuthorizeDrive: () -> Unit = onRequestGoogleSignIn,
-    onSelectSourceApp: (SyncSourceApp) -> Unit,
-    onWriteModeSelected: (WriteMode) -> Unit,
-    onFolderSelected: (TargetFolder) -> Unit,
-    onExportNow: () -> Unit,
+    onSelectSourceApp: (SyncSourceApp) -> Unit = {},
+    onWriteModeSelected: (WriteMode) -> Unit = {},
+    onFolderSelected: (TargetFolder) -> Unit = {},
+    onExportNow: () -> Unit = {},
     onBulkExport: () -> Unit = {},
     onRefreshHealthData: () -> Unit,
     onOpenScheduleSettings: () -> Unit,
-    onDismissExportResult: () -> Unit,
+    onDismissExportResult: () -> Unit = {},
     onDismissInitialBulkBanner: () -> Unit = {},
     onDismissBulkExportDialog: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -46,6 +47,11 @@ fun DashboardScreen(
     val hasDriveToken = uiState.settings.googleOAuthAccessToken.isNotBlank()
     val isDriveGood = uiState.settings.demoModeEnabled || hasDriveToken
 
+    val isHc = uiState.settings.isHealthConnectEnabled
+    val isHevy = uiState.settings.isHevyEnabled
+    val isHcOk = uiState.healthAvailability == HealthConnectAvailability.AVAILABLE && uiState.hasPermissions
+    val isHevyOk = uiState.settings.hevyApiKey.isNotBlank()
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -53,41 +59,38 @@ fun DashboardScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // First-Time Bulk History Export Banner
-        if (!uiState.settings.hasCompletedInitialBulkExport) {
-            InitialBulkExportBanner(
-                sourceAppName = uiState.settings.sourceApp.displayName,
-                onStartBulkExport = onBulkExport,
-                onDismiss = onDismissInitialBulkBanner
-            )
-        }
-
-        // Status Row (Source App Status, Google Drive, Auto-Sync)
+        // Status Row (Sources Status, Google Drive, Auto-Sync)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // Source Status
-            val isHevy = uiState.settings.sourceApp == SyncSourceApp.HEVY
-            val isHcOk = uiState.healthAvailability == HealthConnectAvailability.AVAILABLE && uiState.hasPermissions
-            val isHevyOk = uiState.settings.hevyApiKey.isNotBlank()
+            val sourceStatusLabel = when {
+                isHc && isHevy -> "Sources"
+                isHc -> "Health Connect"
+                isHevy -> "Hevy Workouts"
+                else -> "Sources"
+            }
+            val sourceStatusVal = when {
+                isHc && isHevy -> if ((isHcOk || uiState.settings.demoModeEnabled) && (isHevyOk || uiState.settings.demoModeEnabled)) "2 Active" else "Setup Needed"
+                isHc -> if (uiState.settings.demoModeEnabled) "Demo Mode" else if (isHcOk) "Connected" else "Needs Access"
+                isHevy -> if (uiState.settings.demoModeEnabled) "Demo Mode" else if (isHevyOk) "Ready" else "Key Needed"
+                else -> "None Enabled"
+            }
+            val isSourceGood = when {
+                isHc && isHevy -> (isHcOk || uiState.settings.demoModeEnabled) && (isHevyOk || uiState.settings.demoModeEnabled)
+                isHc -> isHcOk || uiState.settings.demoModeEnabled
+                isHevy -> isHevyOk || uiState.settings.demoModeEnabled
+                else -> false
+            }
+
             StatusBadge(
                 modifier = Modifier.weight(1f),
-                label = if (isHevy) "Source: Hevy" else "Health Connect",
-                status = if (isHevy) {
-                    if (isHevyOk) "Ready" else "Setup Needed"
-                } else {
-                    if (uiState.settings.demoModeEnabled) "Demo Mode" else if (isHcOk) "Connected" else "Needs Access"
-                },
-                icon = if (isHevy) Icons.Default.FitnessCenter else (if (isHcOk) Icons.Default.CheckCircle else Icons.Default.Warning),
-                isGood = (isHevy && isHevyOk) || isHcOk || uiState.settings.demoModeEnabled,
-                onClick = {
-                    if (!isHevy && !isHcOk && !uiState.settings.demoModeEnabled) {
-                        onRequestHealthPermissions()
-                    } else if (isHevy) {
-                        onOpenScheduleSettings()
-                    }
-                }
+                label = sourceStatusLabel,
+                status = sourceStatusVal,
+                icon = if (isSourceGood) Icons.Default.CheckCircle else Icons.Default.Apps,
+                isGood = isSourceGood,
+                onClick = onOpenScheduleSettings
             )
 
             // Destination Status (Google Drive)
@@ -118,7 +121,7 @@ fun DashboardScreen(
             Surface(
                 color = Color(0xFFFEF7E0),
                 shape = RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFEEFC3)),
+                border = BorderStroke(1.dp, Color(0xFFFEEFC3)),
                 modifier = Modifier.fillMaxWidth().testTag("dashboard_drive_auth_banner")
             ) {
                 Row(
@@ -141,7 +144,7 @@ fun DashboardScreen(
                         if (uiState.authError != null) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Setup required in Google Cloud Console. See Settings or Diagnostics for details.",
+                                text = "Setup required in Google Cloud Console. See Settings for details.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error,
                                 fontSize = 11.sp,
@@ -165,12 +168,12 @@ fun DashboardScreen(
             }
         }
 
-        // Health Permissions notice if needed (only when Health Connect is selected)
-        if (uiState.settings.sourceApp == SyncSourceApp.HEALTH_CONNECT && !uiState.hasPermissions && !uiState.settings.demoModeEnabled) {
+        // Health Permissions notice if needed (only when Health Connect is enabled)
+        if (isHc && !uiState.hasPermissions && !uiState.settings.demoModeEnabled) {
             Surface(
                 color = MaterialTheme.colorScheme.tertiaryContainer,
                 shape = RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -207,67 +210,8 @@ fun DashboardScreen(
             }
         }
 
-        // Last Export Result Banner
-        AnimatedVisibility(visible = uiState.lastExportResult != null) {
-            uiState.lastExportResult?.let { result ->
-                Surface(
-                    color = if (result.isSuccess) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = if (result.isSuccess) Icons.Default.CheckCircle else Icons.Default.Error,
-                                contentDescription = null,
-                                tint = if (result.isSuccess) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                            )
-                            Column {
-                                Text(
-                                    text = if (result.isSuccess) "Export Succeeded!" else "Export Notice",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (result.isSuccess) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer
-                                )
-                                Text(
-                                    text = result.message,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (result.isSuccess) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            }
-                        }
-                        IconButton(onClick = onDismissExportResult) {
-                            Icon(Icons.Default.Close, contentDescription = "Dismiss")
-                        }
-                    }
-                }
-            }
-        }
-
-        // SOURCE APP SELECTOR (Choose Hevy or Health Connect)
-        SourceAppSelectorCard(
-            selectedSource = uiState.settings.sourceApp,
-            onSelectSource = onSelectSourceApp
-        )
-
-        // DATA CARD: Based on selected source app
-        if (uiState.settings.sourceApp == SyncSourceApp.HEVY) {
-            HevyWorkoutsCard(
-                payload = uiState.workoutsPayload,
-                isApiKeyConfigured = uiState.settings.hevyApiKey.isNotBlank(),
-                isDemoMode = uiState.settings.demoModeEnabled,
-                onOpenSettings = onOpenScheduleSettings,
-                onRefresh = onRefreshHealthData
-            )
-        } else {
+        // DATA CARDS: Display active data for all enabled sources
+        if (isHc) {
             HealthMetricsCard(
                 record = uiState.todayRecord,
                 hasPermissions = uiState.hasPermissions,
@@ -278,29 +222,56 @@ fun DashboardScreen(
             )
         }
 
-        // Export Controls Card
-        ExportControlsCard(
-            sourceApp = uiState.settings.sourceApp,
-            selectedWriteMode = uiState.settings.writeMode,
-            onWriteModeSelected = onWriteModeSelected,
-            selectedFolder = uiState.settings.targetFolder,
-            onFolderSelected = onFolderSelected,
-            customFolderPath = uiState.settings.customFolderPath,
-            autoSyncEnabled = uiState.settings.autoSyncEnabled,
-            syncIntervalMinutes = uiState.settings.syncIntervalMinutes,
-            isExporting = uiState.isExporting,
-            onExportNow = onExportNow,
-            onBulkExport = onBulkExport,
-            onOpenScheduleSettings = onOpenScheduleSettings
-        )
-
-        // Bulk Export Progress Dialog
-        if (uiState.bulkExportState.isRunning || uiState.bulkExportState.isCompleted || uiState.bulkExportState.error != null) {
-            BulkExportProgressDialog(
-                bulkState = uiState.bulkExportState,
-                sourceAppName = uiState.settings.sourceApp.displayName,
-                onDismiss = onDismissBulkExportDialog
+        if (isHevy) {
+            HevyWorkoutsCard(
+                payload = uiState.workoutsPayload,
+                isApiKeyConfigured = uiState.settings.hevyApiKey.isNotBlank(),
+                isDemoMode = uiState.settings.demoModeEnabled,
+                onOpenSettings = onOpenScheduleSettings,
+                onRefresh = onRefreshHealthData
             )
+        }
+
+        if (!isHc && !isHevy) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("dashboard_no_sources_card"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Apps,
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "No Sync Sources Enabled",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Head to Settings to enable Health Connect or Hevy to view your daily health metrics and workout logs.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    Button(
+                        onClick = onOpenScheduleSettings,
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Open Settings")
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -320,7 +291,7 @@ private fun StatusBadge(
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
         modifier = modifier
     ) {
         Column(

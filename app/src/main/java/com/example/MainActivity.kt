@@ -241,8 +241,12 @@ class MainActivity : ComponentActivity() {
                                                         fontSize = 15.sp,
                                                         color = MaterialTheme.colorScheme.primary
                                                     )
+                                                    val enabledSourcesList = buildList {
+                                                        if (uiState.settings.isHealthConnectEnabled) add("Health Connect")
+                                                        if (uiState.settings.isHevyEnabled) add("Hevy")
+                                                    }
                                                     Text(
-                                                        text = if (uiState.settings.sourceApp == SyncSourceApp.HEVY) "• Hevy" else "• Health Connect",
+                                                        text = if (enabledSourcesList.isNotEmpty()) "• " + enabledSourcesList.joinToString(" & ") else "• No Source Enabled",
                                                         fontWeight = FontWeight.Medium,
                                                         fontSize = 12.sp,
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -294,7 +298,19 @@ class MainActivity : ComponentActivity() {
                                         onClick = { viewModel.selectTab(0) },
                                         icon = {
                                             Icon(
-                                                imageVector = if (uiState.activeTab == 0) Icons.Filled.Dashboard else Icons.Outlined.Dashboard,
+                                                imageVector = if (uiState.activeTab == 0) Icons.Filled.Settings else Icons.Outlined.Settings,
+                                                contentDescription = "Settings"
+                                            )
+                                        },
+                                        label = { Text("Settings") },
+                                        modifier = Modifier.testTag("nav_item_settings")
+                                    )
+                                    NavigationBarItem(
+                                        selected = uiState.activeTab == 1,
+                                        onClick = { viewModel.selectTab(1) },
+                                        icon = {
+                                            Icon(
+                                                imageVector = if (uiState.activeTab == 1) Icons.Filled.Dashboard else Icons.Outlined.Dashboard,
                                                 contentDescription = "Dashboard"
                                             )
                                         },
@@ -302,59 +318,32 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier.testTag("nav_item_dashboard")
                                     )
                                     NavigationBarItem(
-                                        selected = uiState.activeTab == 1,
-                                        onClick = { viewModel.selectTab(1) },
+                                        selected = uiState.activeTab == 2,
+                                        onClick = { viewModel.selectTab(2) },
                                         icon = {
                                             Icon(
-                                                imageVector = if (uiState.activeTab == 1) Icons.Filled.History else Icons.Outlined.History,
+                                                imageVector = if (uiState.activeTab == 2) Icons.Filled.History else Icons.Outlined.History,
                                                 contentDescription = "History"
                                             )
                                         },
                                         label = { Text("History") },
                                         modifier = Modifier.testTag("nav_item_history")
                                     )
-                                    NavigationBarItem(
-                                        selected = uiState.activeTab == 2,
-                                        onClick = { viewModel.selectTab(2) },
-                                        icon = {
-                                            Icon(
-                                                imageVector = if (uiState.activeTab == 2) Icons.Filled.Settings else Icons.Outlined.Settings,
-                                                contentDescription = "Settings"
-                                            )
-                                        },
-                                        label = { Text("Settings") },
-                                        modifier = Modifier.testTag("nav_item_settings")
-                                    )
                                 }
                             }
                         ) { innerPadding ->
                             when (uiState.activeTab) {
-                                0 -> DashboardScreen(
+                                0 -> SettingsScreen(
                                     uiState = uiState,
-                                    onRequestHealthPermissions = requestPermissions,
-                                    onRequestGoogleSignIn = { launchGoogleSignIn() },
-                                    onAuthorizeDrive = { viewModel.refreshGoogleDriveToken() },
-                                    onSelectSourceApp = { viewModel.updateSourceApp(it) },
-                                    onWriteModeSelected = { viewModel.updateWriteMode(it) },
-                                    onFolderSelected = { viewModel.updateTargetFolder(it) },
-                                    onExportNow = { viewModel.exportNow() },
-                                    onBulkExport = { viewModel.startBulkExport(365) },
-                                    onRefreshHealthData = { viewModel.refreshActiveData() },
-                                    onOpenScheduleSettings = { viewModel.selectTab(2) },
-                                    onDismissExportResult = { viewModel.dismissExportResult() },
-                                    onDismissInitialBulkBanner = { viewModel.dismissInitialBulkExportPrompt() },
-                                    onDismissBulkExportDialog = { viewModel.dismissBulkExportDialog() },
-                                    modifier = Modifier.padding(innerPadding)
-                                )
-                                1 -> HistoryScreen(
-                                    history = history,
-                                    onClearHistory = { viewModel.clearHistory() },
-                                    modifier = Modifier.padding(innerPadding)
-                                )
-                                2 -> SettingsScreen(
-                                    uiState = uiState,
+                                    onUpdateHealthConnectEnabled = { viewModel.updateHealthConnectEnabled(it) },
+                                    onUpdateHevyEnabled = { viewModel.updateHevyEnabled(it) },
                                     onUpdateSourceApp = { viewModel.updateSourceApp(it) },
                                     onUpdateHevyApiKey = { viewModel.updateHevyApiKey(it) },
+                                    onWriteModeSelected = { viewModel.updateWriteMode(it) },
+                                    onExportNow = { viewModel.exportNow() },
+                                    onBulkExport = { viewModel.startBulkExport(365) },
+                                    onDismissExportResult = { viewModel.dismissExportResult() },
+                                    onDismissBulkExportDialog = { viewModel.dismissBulkExportDialog() },
                                     onTestDriveConnection = { viewModel.testDriveConnection() },
                                     onDismissTestResult = { viewModel.dismissTestResult() },
                                     onUpdateSyncInterval = { viewModel.updateSyncInterval(it) },
@@ -376,9 +365,22 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onNavigateToLanding = { viewModel.navigateTo(AppScreen.LANDING) },
                                     onDisconnectGoogle = { viewModel.disconnectGoogleAccount() },
-                                    onBulkExport = { viewModel.startBulkExport(365) },
                                     onOpenDiagnostics = { viewModel.openDiagnosticsDialog() },
                                     onClearCache = { viewModel.clearSyncCache() },
+                                    modifier = Modifier.padding(innerPadding)
+                                )
+                                1 -> DashboardScreen(
+                                    uiState = uiState,
+                                    onRequestHealthPermissions = requestPermissions,
+                                    onRequestGoogleSignIn = { launchGoogleSignIn() },
+                                    onAuthorizeDrive = { viewModel.refreshGoogleDriveToken() },
+                                    onRefreshHealthData = { viewModel.refreshActiveData() },
+                                    onOpenScheduleSettings = { viewModel.selectTab(0) },
+                                    modifier = Modifier.padding(innerPadding)
+                                )
+                                2 -> HistoryScreen(
+                                    history = history,
+                                    onClearHistory = { viewModel.clearHistory() },
                                     modifier = Modifier.padding(innerPadding)
                                 )
                             }

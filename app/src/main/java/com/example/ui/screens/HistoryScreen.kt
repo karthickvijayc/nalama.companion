@@ -87,7 +87,7 @@ fun HistoryScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "Tap 'Export Now' on the Dashboard or wait for the 15-min schedule.",
+                        text = "Tap 'Sync Now' in Settings or wait for the scheduled sync.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                     )

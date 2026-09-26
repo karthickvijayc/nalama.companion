@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.time.ZoneId
 
 data class AppSettings(
+    val isHealthConnectEnabled: Boolean = true,
+    val isHevyEnabled: Boolean = false,
     val sourceApp: SyncSourceApp = SyncSourceApp.HEALTH_CONNECT,
     val hevyApiKey: String = "",
     val targetFolder: TargetFolder = TargetFolder.HEALTH_DATA,
@@ -53,8 +55,12 @@ class PreferencesManager(context: Context) {
         }
 
         val defaultFolder = loadedSourceApp.defaultTargetFolder
+        val isHcEnabled = prefs.getBoolean(KEY_HEALTH_CONNECT_ENABLED, true)
+        val isHevyEnabled = prefs.getBoolean(KEY_HEVY_ENABLED, prefs.getString(KEY_HEVY_API_KEY, "")?.isNotBlank() == true || loadedSourceApp == SyncSourceApp.HEVY)
 
         return AppSettings(
+            isHealthConnectEnabled = isHcEnabled,
+            isHevyEnabled = isHevyEnabled,
             sourceApp = loadedSourceApp,
             hevyApiKey = prefs.getString(KEY_HEVY_API_KEY, "") ?: "",
             targetFolder = try { TargetFolder.valueOf(targetFolderStr) } catch (_: Exception) { defaultFolder },
@@ -116,6 +122,16 @@ class PreferencesManager(context: Context) {
             targetFolder = folder,
             customFolderPath = folder.folderPath
         )
+    }
+
+    fun updateHealthConnectEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_HEALTH_CONNECT_ENABLED, enabled).apply()
+        _settings.value = _settings.value.copy(isHealthConnectEnabled = enabled)
+    }
+
+    fun updateHevyEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_HEVY_ENABLED, enabled).apply()
+        _settings.value = _settings.value.copy(isHevyEnabled = enabled)
     }
 
     fun updateHevyApiKey(key: String) {
@@ -233,6 +249,8 @@ class PreferencesManager(context: Context) {
     }
 
     companion object {
+        private const val KEY_HEALTH_CONNECT_ENABLED = "key_health_connect_enabled"
+        private const val KEY_HEVY_ENABLED = "key_hevy_enabled"
         private const val KEY_SOURCE_APP = "key_source_app"
         private const val KEY_HEVY_API_KEY = "key_hevy_api_key"
         private const val KEY_WRITE_MODE = "key_write_mode"
