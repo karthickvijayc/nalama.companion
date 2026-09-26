@@ -12,6 +12,7 @@ import com.example.model.VitalsMetrics
 import com.example.model.ExerciseSet
 import com.example.model.WorkoutExercise
 import com.example.model.WorkoutItem
+import com.example.util.AppLogger
 import com.example.util.CsvConverter
 import com.example.util.WorkoutCsvConverter
 import org.json.JSONObject
