@@ -312,20 +312,25 @@ class DriveSyncCacheManager(private val context: Context) {
         archiveMaxDays: Int = 180
     ): WorkoutsMergeResult {
         val workoutMap = mutableMapOf<String, WorkoutItem>()
+        val workoutExercisesMap = mutableMapOf<String, MutableMap<String, MutableList<ExerciseSet>>>()
+        val workoutExerciseMetaMap = mutableMapOf<String, MutableMap<String, Pair<String?, String?>>>()
+        val workoutExerciseNotesMap = mutableMapOf<String, MutableMap<String, String?>>()
 
         // 1. Parse existing rows if present
         if (!existingCsv.isNullOrBlank()) {
             val lines = existingCsv.lines().filter { it.isNotBlank() }
             if (lines.size > 1) {
                 for (i in 1 until lines.size) {
-                    val cols = lines[i].split(",")
+                    val cols = parseCsvLine(lines[i])
                     if (cols.isNotEmpty()) {
                         val workoutId = cols.getOrNull(0)?.trim() ?: ""
                         val date = cols.getOrNull(1)?.trim() ?: ""
                         val title = cols.getOrNull(2)?.trim() ?: ""
                         val startTime = cols.getOrNull(3)?.trim() ?: ""
                         val key = workoutId.ifBlank { "${date}_${startTime}_${title}" }
-                        if (key.isNotBlank() && !workoutMap.containsKey(key)) {
+                        if (key.isBlank()) continue
+
+                        if (!workoutMap.containsKey(key)) {
                             workoutMap[key] = WorkoutItem(
                                 workoutId = workoutId,
                                 date = date,
@@ -340,8 +345,54 @@ class DriveSyncCacheManager(private val context: Context) {
                                 caloriesActualHr = cols.getOrNull(10)?.trim()?.toIntOrNull(),
                                 notes = cols.getOrNull(19)?.trim()?.ifBlank { null }
                             )
+                            workoutExercisesMap[key] = mutableMapOf()
+                            workoutExerciseMetaMap[key] = mutableMapOf()
+                            workoutExerciseNotesMap[key] = mutableMapOf()
+                        }
+
+                        val exName = cols.getOrNull(11)?.trim() ?: ""
+                        if (exName.isNotBlank()) {
+                            val targetMuscle = cols.getOrNull(12)?.trim()?.ifBlank { null }
+                            val equipment = cols.getOrNull(13)?.trim()?.ifBlank { null }
+                            val setNum = cols.getOrNull(14)?.trim()?.toIntOrNull() ?: 1
+                            val setType = cols.getOrNull(15)?.trim()?.ifBlank { "normal" } ?: "normal"
+                            val weightKg = cols.getOrNull(16)?.trim()?.toDoubleOrNull() ?: 0.0
+                            val reps = cols.getOrNull(17)?.trim()?.toIntOrNull() ?: 0
+                            val rpe = cols.getOrNull(18)?.trim()?.toDoubleOrNull()
+                            val notes = cols.getOrNull(19)?.trim()?.ifBlank { null }
+
+                            val exercises = workoutExercisesMap[key]!!
+                            val setList = exercises.getOrPut(exName) { mutableListOf() }
+                            setList.add(
+                                ExerciseSet(
+                                    setNumber = setNum,
+                                    setType = setType,
+                                    weightKg = weightKg,
+                                    reps = reps,
+                                    rpe = rpe
+                                )
+                            )
+                            workoutExerciseMetaMap[key]?.put(exName, Pair(targetMuscle, equipment))
+                            if (notes != null) workoutExerciseNotesMap[key]?.put(exName, notes)
                         }
                     }
+                }
+
+                // Attach reconstructed exercises to each workout
+                for ((key, workout) in workoutMap) {
+                    val exercisesForWorkout = workoutExercisesMap[key] ?: emptyMap()
+                    val exerciseList = exercisesForWorkout.map { (exName, sets) ->
+                        val (muscle, equip) = workoutExerciseMetaMap[key]?.get(exName) ?: Pair(null, null)
+                        val exNote = workoutExerciseNotesMap[key]?.get(exName)
+                        WorkoutExercise(
+                            exerciseName = exName,
+                            targetMuscleGroup = muscle,
+                            equipment = equip,
+                            sets = sets,
+                            notes = exNote
+                        )
+                    }
+                    workoutMap[key] = workout.copy(exercises = exerciseList)
                 }
             }
         }
@@ -361,10 +412,16 @@ class DriveSyncCacheManager(private val context: Context) {
         }
 
         val sortedWorkouts = workoutMap.values.sortedBy { "${it.date} ${it.startTime}" }
-        val cutoffDate = LocalDate.now().minusDays(archiveMaxDays.toLong()).toString()
 
-        val activeWorkouts = sortedWorkouts.filter { it.date >= cutoffDate }
-        val archivedWorkouts = sortedWorkouts.filter { it.date < cutoffDate }
+        val (activeWorkouts, archivedWorkouts) = if (archiveMaxDays <= 0) {
+            Pair(sortedWorkouts, emptyList<WorkoutItem>())
+        } else {
+            val cutoffDate = LocalDate.now().minusDays(archiveMaxDays.toLong()).toString()
+            Pair(
+                sortedWorkouts.filter { it.date >= cutoffDate },
+                sortedWorkouts.filter { it.date < cutoffDate }
+            )
+        }
 
         val activeCsv = WorkoutCsvConverter.toCsvString(activeWorkouts, includeHeader = true)
         val archiveByYear = mutableMapOf<Int, String>()
@@ -386,6 +443,36 @@ class DriveSyncCacheManager(private val context: Context) {
             archivedCount = archivedWorkouts.size,
             totalActiveRecords = activeWorkouts.size
         )
+    }
+
+    fun parseCsvLine(line: String): List<String> {
+        val result = mutableListOf<String>()
+        val sb = java.lang.StringBuilder()
+        var inQuotes = false
+        var i = 0
+        while (i < line.length) {
+            val c = line[i]
+            when {
+                c == '\"' -> {
+                    if (inQuotes && i + 1 < line.length && line[i + 1] == '\"') {
+                        sb.append('\"')
+                        i++
+                    } else {
+                        inQuotes = !inQuotes
+                    }
+                }
+                c == ',' && !inQuotes -> {
+                    result.add(sb.toString())
+                    sb.setLength(0)
+                }
+                else -> {
+                    sb.append(c)
+                }
+            }
+            i++
+        }
+        result.add(sb.toString())
+        return result
     }
 
     private fun parseCsvLineToDailyRecord(cols: List<String>): DailyRecord {

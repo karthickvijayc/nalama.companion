@@ -219,10 +219,17 @@ class HevySyncManager {
                     totalVolKg += (wKg * reps)
                     totalSetsCount++
 
+                    val setType = when {
+                        sObj.has("type") && !sObj.isNull("type") -> sObj.optString("type", "normal")
+                        sObj.has("set_type") && !sObj.isNull("set_type") -> sObj.optString("set_type", "normal")
+                        else -> "normal"
+                    }
+                    val setIdx = if (sObj.has("index")) sObj.optInt("index", k) + 1 else k + 1
+
                     setList.add(
                         ExerciseSet(
-                            setNumber = k + 1,
-                            setType = sObj.optString("set_type", "normal"),
+                            setNumber = setIdx,
+                            setType = setType,
                             weightKg = wKg,
                             reps = reps,
                             rpe = rpeVal
@@ -230,14 +237,24 @@ class HevySyncManager {
                     )
                 }
 
+                val exTitle = exObj.optString("title").ifBlank { exObj.optString("name", "Exercise") }
+                val exNotes = if (exObj.has("notes") && !exObj.isNull("notes")) exObj.optString("notes").ifBlank { null } else null
+
                 exerciseList.add(
                     WorkoutExercise(
-                        exerciseName = exObj.optString("title", "Exercise"),
-                        targetMuscleGroup = exObj.optString("muscle_group", null),
-                        equipment = exObj.optString("equipment", null),
-                        sets = setList
+                        exerciseName = exTitle,
+                        targetMuscleGroup = if (exObj.has("muscle_group")) exObj.optString("muscle_group", null) else null,
+                        equipment = if (exObj.has("equipment")) exObj.optString("equipment", null) else null,
+                        sets = setList,
+                        notes = exNotes
                     )
                 )
+            }
+
+            val workoutNotes = when {
+                wObj.has("description") && !wObj.isNull("description") -> wObj.optString("description").ifBlank { null }
+                wObj.has("notes") && !wObj.isNull("notes") -> wObj.optString("notes").ifBlank { null }
+                else -> null
             }
 
             parsedWorkouts.add(
@@ -253,7 +270,7 @@ class HevySyncManager {
                     avgHeartRateBpm = if (wObj.has("avg_hr")) wObj.optInt("avg_hr") else null,
                     maxHeartRateBpm = if (wObj.has("max_hr")) wObj.optInt("max_hr") else null,
                     caloriesActualHr = if (wObj.has("calories")) wObj.optInt("calories") else null,
-                    notes = wObj.optString("description", null),
+                    notes = workoutNotes,
                     exercises = exerciseList
                 )
             )

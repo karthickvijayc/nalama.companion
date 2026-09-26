@@ -356,7 +356,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     targetSubfolder = subfolder,
                     fileName = defaultFileName,
                     writeMode = settings.writeMode,
-                    archiveMaxDays = settings.archiveMaxDays,
+                    archiveMaxDays = 0,
                     isDemoMode = settings.demoModeEnabled,
                     userEmail = settings.connectedEmail.ifBlank { null }
                 )
@@ -840,44 +840,37 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     return@launch
                 }
 
-                val chunks = allWorkouts.chunked(50)
-                var uploadedCount = 0
-                var lastDirectResult: com.example.drive.DirectDriveResult? = null
-
-                for ((idx, chunk) in chunks.withIndex()) {
-                    val chunkProgress = 0.5f + ((idx + 1).toFloat() / chunks.size.toFloat()) * 0.5f
-                    _uiState.update {
-                        it.copy(
-                            bulkExportState = it.bulkExportState.copy(
-                                percentage = chunkProgress,
-                                statusMessage = "Exporting chunk ${idx + 1} of ${chunks.size} (${chunk.size} workouts)...",
-                                phase = "UPLOADING"
-                            )
+                _uiState.update {
+                    it.copy(
+                        bulkExportState = it.bulkExportState.copy(
+                            percentage = 0.8f,
+                            statusMessage = "Uploading ${allWorkouts.size} workouts to Google Drive ($defaultFileName.csv)...",
+                            phase = "UPLOADING"
                         )
-                    }
-
-                    val payload = WorkoutsExportPayload(
-                        exportVersion = "1.0",
-                        sourceApp = "Hevy",
-                        syncedAt = now.format(DateTimeFormatter.ISO_INSTANT),
-                        workouts = chunk
                     )
-
-                    val direct = driveClient.syncWorkoutsDirectly(
-                        accessToken = activeToken,
-                        payload = payload,
-                        folderPath = folderPath,
-                        targetSubfolder = subfolder,
-                        fileName = defaultFileName,
-                        writeMode = WriteMode.APPEND,
-                        archiveMaxDays = settings.archiveMaxDays,
-                        isDemoMode = settings.demoModeEnabled
-                    )
-                    lastDirectResult = direct
-
-                    uploadedCount += chunk.size
-                    kotlinx.coroutines.delay(200L)
                 }
+
+                val payload = WorkoutsExportPayload(
+                    exportVersion = "1.0",
+                    sourceApp = "Hevy",
+                    syncedAt = now.format(DateTimeFormatter.ISO_INSTANT),
+                    workouts = allWorkouts
+                )
+
+                val direct = driveClient.syncWorkoutsDirectly(
+                    accessToken = activeToken,
+                    payload = payload,
+                    folderPath = folderPath,
+                    targetSubfolder = subfolder,
+                    fileName = defaultFileName,
+                    writeMode = WriteMode.APPEND,
+                    archiveMaxDays = 0, // Preserve all historical workouts in main active file
+                    isDemoMode = settings.demoModeEnabled,
+                    userEmail = settings.connectedEmail.ifBlank { null }
+                )
+
+                val uploadedCount = allWorkouts.size
+                val lastDirectResult = direct
 
                 val finalSuccess = lastDirectResult?.isSuccess == true
                 val isLocalFallback = lastDirectResult?.isLocalOnlyFallback == true

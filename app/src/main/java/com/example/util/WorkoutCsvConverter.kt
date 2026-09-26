@@ -53,6 +53,14 @@ object WorkoutCsvConverter {
                 ))
             } else {
                 for (ex in workout.exercises) {
+                    val exNotes = ex.notes?.trim()?.ifBlank { null }
+                    val wkNotes = workout.notes?.trim()?.ifBlank { null }
+                    val combinedNotes = when {
+                        exNotes != null && wkNotes != null -> "$wkNotes | $exNotes"
+                        exNotes != null -> exNotes
+                        wkNotes != null -> wkNotes
+                        else -> ""
+                    }
                     if (ex.sets.isEmpty()) {
                         result.add(listOf(
                             workout.workoutId,
@@ -70,7 +78,7 @@ object WorkoutCsvConverter {
                             ex.targetMuscleGroup ?: "",
                             ex.equipment ?: "",
                             "", "", "", "", "",
-                            workout.notes ?: ""
+                            combinedNotes
                         ))
                     } else {
                         for (set in ex.sets) {
@@ -94,7 +102,7 @@ object WorkoutCsvConverter {
                                 set.weightKg,
                                 set.reps,
                                 set.rpe ?: "",
-                                workout.notes ?: ""
+                                combinedNotes
                             ))
                         }
                     }
@@ -133,6 +141,14 @@ object WorkoutCsvConverter {
                 sb.append(row.joinToString(",")).append("\n")
             } else {
                 for (ex in workout.exercises) {
+                    val exNotes = ex.notes?.trim()?.ifBlank { null }
+                    val wkNotes = workout.notes?.trim()?.ifBlank { null }
+                    val combinedNotes = when {
+                        exNotes != null && wkNotes != null -> "$wkNotes | $exNotes"
+                        exNotes != null -> exNotes
+                        wkNotes != null -> wkNotes
+                        else -> ""
+                    }
                     if (ex.sets.isEmpty()) {
                         val row = listOf(
                             escapeCsv(workout.workoutId),
@@ -150,7 +166,7 @@ object WorkoutCsvConverter {
                             escapeCsv(ex.targetMuscleGroup ?: ""),
                             escapeCsv(ex.equipment ?: ""),
                             "", "", "", "", "",
-                            escapeCsv(workout.notes ?: "")
+                            escapeCsv(combinedNotes)
                         )
                         sb.append(row.joinToString(",")).append("\n")
                     } else {
@@ -175,7 +191,7 @@ object WorkoutCsvConverter {
                                 s.weightKg.toString(),
                                 s.reps.toString(),
                                 s.rpe?.toString() ?: "",
-                                escapeCsv(workout.notes ?: "")
+                                escapeCsv(combinedNotes)
                             )
                             sb.append(row.joinToString(",")).append("\n")
                         }

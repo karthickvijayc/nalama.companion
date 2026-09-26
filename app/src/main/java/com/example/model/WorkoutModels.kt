@@ -36,7 +36,8 @@ data class WorkoutExercise(
     val exerciseName: String,
     val targetMuscleGroup: String? = null,
     val equipment: String? = null,
-    val sets: List<ExerciseSet> = emptyList()
+    val sets: List<ExerciseSet> = emptyList(),
+    val notes: String? = null
 )
 
 data class ExerciseSet(

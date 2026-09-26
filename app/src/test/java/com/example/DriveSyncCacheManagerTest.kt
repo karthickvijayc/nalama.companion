@@ -184,4 +184,74 @@ class DriveSyncCacheManagerTest {
         cacheManager.removeCachedFileInfo(fileName)
         assertNull(cacheManager.getCachedFileInfo(fileName))
     }
+
+    @Test
+    fun testWorkoutExercisesAndSetsPreservedAcrossMerges() {
+        val w1 = WorkoutItem(
+            workoutId = "w_001",
+            date = "2026-09-01",
+            title = "Bench & Squat",
+            startTime = "07:00",
+            durationMinutes = 60,
+            totalSets = 2,
+            exercises = listOf(
+                WorkoutExercise(
+                    exerciseName = "Barbell Bench Press",
+                    targetMuscleGroup = "Chest",
+                    equipment = "Barbell",
+                    notes = "RPE 8.5 on last set",
+                    sets = listOf(
+                        ExerciseSet(setNumber = 1, setType = "warmup", weightKg = 60.0, reps = 10),
+                        ExerciseSet(setNumber = 2, setType = "normal", weightKg = 100.0, reps = 5, rpe = 8.5)
+                    )
+                )
+            )
+        )
+
+        val w2 = WorkoutItem(
+            workoutId = "w_002",
+            date = "2026-09-02",
+            title = "Deadlift & Pull",
+            startTime = "07:30",
+            durationMinutes = 50,
+            totalSets = 1,
+            exercises = listOf(
+                WorkoutExercise(
+                    exerciseName = "Deadlift",
+                    targetMuscleGroup = "Back",
+                    sets = listOf(
+                        ExerciseSet(setNumber = 1, setType = "normal", weightKg = 140.0, reps = 5)
+                    )
+                )
+            )
+        )
+
+        // 1. Initial sync with w1
+        val initial = cacheManager.mergeWorkoutsCsv(
+            existingCsv = null,
+            incomingWorkouts = listOf(w1),
+            archiveMaxDays = 0
+        )
+        assertEquals(1, initial.totalActiveRecords)
+        assertTrue(initial.activeCsv.contains("Barbell Bench Press"))
+        assertTrue(initial.activeCsv.contains("100.0"))
+        assertTrue(initial.activeCsv.contains("warmup"))
+        assertTrue(initial.activeCsv.contains("RPE 8.5 on last set"))
+
+        // 2. Incremental sync with w2
+        val merged = cacheManager.mergeWorkoutsCsv(
+            existingCsv = initial.activeCsv,
+            incomingWorkouts = listOf(w2),
+            archiveMaxDays = 0
+        )
+        assertEquals(2, merged.totalActiveRecords)
+        // Verify w1 exercises and sets survived completely
+        assertTrue(merged.activeCsv.contains("Barbell Bench Press"))
+        assertTrue(merged.activeCsv.contains("100.0"))
+        assertTrue(merged.activeCsv.contains("warmup"))
+        assertTrue(merged.activeCsv.contains("RPE 8.5 on last set"))
+        // Verify w2 exercises and sets are present
+        assertTrue(merged.activeCsv.contains("Deadlift"))
+        assertTrue(merged.activeCsv.contains("140.0"))
+    }
 }

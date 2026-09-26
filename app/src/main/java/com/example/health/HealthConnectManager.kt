@@ -34,7 +34,12 @@ class HealthConnectManager(private val context: Context) {
         }
     }
 
+    companion object {
+        const val PERMISSION_READ_HEALTH_DATA_HISTORY = "android.permission.health.READ_HEALTH_DATA_HISTORY"
+    }
+
     val permissions: Set<String> = setOf(
+        PERMISSION_READ_HEALTH_DATA_HISTORY,
         HealthPermission.getReadPermission(StepsRecord::class),
         HealthPermission.getReadPermission(DistanceRecord::class),
         HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
@@ -80,7 +85,18 @@ class HealthConnectManager(private val context: Context) {
         val client = healthConnectClient ?: return false
         return try {
             val granted = client.permissionController.getGrantedPermissions()
-            granted.containsAll(permissions)
+            val corePermissions = permissions.filter { it != PERMISSION_READ_HEALTH_DATA_HISTORY }
+            granted.containsAll(corePermissions)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun hasHistoryPermission(): Boolean {
+        val client = healthConnectClient ?: return false
+        return try {
+            val granted = client.permissionController.getGrantedPermissions()
+            granted.contains(PERMISSION_READ_HEALTH_DATA_HISTORY)
         } catch (e: Exception) {
             false
         }
