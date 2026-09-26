@@ -356,7 +356,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     targetSubfolder = subfolder,
                     fileName = defaultFileName,
                     writeMode = settings.writeMode,
-                    archiveMaxDays = 0,
+                    archiveMaxDays = settings.archiveMaxDays,
                     isDemoMode = settings.demoModeEnabled,
                     userEmail = settings.connectedEmail.ifBlank { null }
                 )
@@ -864,7 +864,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     targetSubfolder = subfolder,
                     fileName = defaultFileName,
                     writeMode = WriteMode.APPEND,
-                    archiveMaxDays = 0, // Preserve all historical workouts in main active file
+                    archiveMaxDays = settings.archiveMaxDays,
                     isDemoMode = settings.demoModeEnabled,
                     userEmail = settings.connectedEmail.ifBlank { null }
                 )

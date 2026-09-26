@@ -160,7 +160,17 @@ class GoogleDriveDirectClient(private val context: Context) {
                         AppLogger.d("DRIVE", "Checking archive file partition '$archiveName' on Drive...")
                         val archiveMeta = queryRemoteFileMetadata(activeToken, folderId, archiveName)
                         if (archiveMeta != null) {
-                            updateRemoteFileMedia(activeToken, archiveMeta.getString("id"), archiveCsv, "text/csv")
+                            val existingArchiveCsv = try {
+                                downloadRemoteFileText(activeToken, archiveMeta.getString("id"))
+                            } catch (_: Exception) { null }
+
+                            val finalArchiveCsv = if (!existingArchiveCsv.isNullOrBlank()) {
+                                val incomingYearRecords = mergeResult.archivedRecordsByYear[year] ?: emptyList()
+                                cacheManager.mergeBiometricsCsv(existingArchiveCsv, incomingYearRecords, 0).activeCsv
+                            } else {
+                                archiveCsv
+                            }
+                            updateRemoteFileMedia(activeToken, archiveMeta.getString("id"), finalArchiveCsv, "text/csv")
                         } else {
                             createRemoteFile(activeToken, folderId, archiveName, archiveCsv, "text/csv")
                         }
@@ -343,7 +353,17 @@ class GoogleDriveDirectClient(private val context: Context) {
                         AppLogger.d("DRIVE", "Checking archive workouts partition '$archiveName' on Drive...")
                         val archiveMeta = queryRemoteFileMetadata(activeToken, folderId, archiveName)
                         if (archiveMeta != null) {
-                            updateRemoteFileMedia(activeToken, archiveMeta.getString("id"), archiveCsv, "text/csv")
+                            val existingArchiveCsv = try {
+                                downloadRemoteFileText(activeToken, archiveMeta.getString("id"))
+                            } catch (_: Exception) { null }
+
+                            val finalArchiveCsv = if (!existingArchiveCsv.isNullOrBlank()) {
+                                val incomingYearWorkouts = mergeResult.archivedWorkoutsByYear[year] ?: emptyList()
+                                cacheManager.mergeWorkoutsCsv(existingArchiveCsv, incomingYearWorkouts, 0).activeCsv
+                            } else {
+                                archiveCsv
+                            }
+                            updateRemoteFileMedia(activeToken, archiveMeta.getString("id"), finalArchiveCsv, "text/csv")
                         } else {
                             createRemoteFile(activeToken, folderId, archiveName, archiveCsv, "text/csv")
                         }
@@ -378,7 +398,17 @@ class GoogleDriveDirectClient(private val context: Context) {
                                 val archiveName = "${fileName}_$year.csv"
                                 val archiveMeta = queryRemoteFileMetadata(activeToken, folderId, archiveName)
                                 if (archiveMeta != null) {
-                                    updateRemoteFileMedia(activeToken, archiveMeta.getString("id"), archiveCsv, "text/csv")
+                                    val existingArchiveCsv = try {
+                                        downloadRemoteFileText(activeToken, archiveMeta.getString("id"))
+                                    } catch (_: Exception) { null }
+
+                                    val finalArchiveCsv = if (!existingArchiveCsv.isNullOrBlank()) {
+                                        val incomingYearWorkouts = mergeResult.archivedWorkoutsByYear[year] ?: emptyList()
+                                        cacheManager.mergeWorkoutsCsv(existingArchiveCsv, incomingYearWorkouts, 0).activeCsv
+                                    } else {
+                                        archiveCsv
+                                    }
+                                    updateRemoteFileMedia(activeToken, archiveMeta.getString("id"), finalArchiveCsv, "text/csv")
                                 } else {
                                     createRemoteFile(activeToken, folderId, archiveName, archiveCsv, "text/csv")
                                 }

@@ -254,4 +254,44 @@ class DriveSyncCacheManagerTest {
         assertTrue(merged.activeCsv.contains("Deadlift"))
         assertTrue(merged.activeCsv.contains("140.0"))
     }
+
+    @Test
+    fun testWorkoutPartitioningByYear() {
+        val today = LocalDate.now()
+        val recentDate = today.minusDays(20).toString()
+        val oldDate = today.minusDays(250).toString()
+
+        val recentWorkout = WorkoutItem(
+            workoutId = "w_recent",
+            date = recentDate,
+            title = "Recent Workout",
+            startTime = "08:00",
+            durationMinutes = 45,
+            totalSets = 3
+        )
+        val oldWorkout = WorkoutItem(
+            workoutId = "w_old",
+            date = oldDate,
+            title = "Old Workout Archived",
+            startTime = "09:00",
+            durationMinutes = 50,
+            totalSets = 4
+        )
+
+        val result = cacheManager.mergeWorkoutsCsv(
+            existingCsv = null,
+            incomingWorkouts = listOf(recentWorkout, oldWorkout),
+            archiveMaxDays = 180
+        )
+
+        assertEquals(1, result.totalActiveRecords)
+        assertEquals(1, result.archivedCount)
+        assertTrue(result.activeCsv.contains(recentDate))
+        assertFalse(result.activeCsv.contains(oldDate))
+
+        val oldYear = LocalDate.parse(oldDate).year
+        assertTrue(result.archiveCsvByYear.containsKey(oldYear))
+        assertTrue(result.archiveCsvByYear[oldYear]?.contains(oldDate) == true)
+        assertEquals(1, result.archivedWorkoutsByYear[oldYear]?.size)
+    }
 }

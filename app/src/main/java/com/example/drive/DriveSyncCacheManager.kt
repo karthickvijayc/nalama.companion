@@ -32,6 +32,7 @@ data class CachedFileInfo(
 data class BiometricsMergeResult(
     val activeCsv: String,
     val archiveCsvByYear: Map<Int, String>,
+    val archivedRecordsByYear: Map<Int, List<DailyRecord>> = emptyMap(),
     val updatedCount: Int,
     val newCount: Int,
     val archivedCount: Int,
@@ -41,6 +42,7 @@ data class BiometricsMergeResult(
 data class WorkoutsMergeResult(
     val activeCsv: String,
     val archiveCsvByYear: Map<Int, String>,
+    val archivedWorkoutsByYear: Map<Int, List<WorkoutItem>> = emptyMap(),
     val updatedCount: Int,
     val newCount: Int,
     val archivedCount: Int,
@@ -285,6 +287,7 @@ class DriveSyncCacheManager(private val context: Context) {
 
         // 6. Group archived records by year
         val archiveByYear = mutableMapOf<Int, String>()
+        val archivedRecordsByYear = mutableMapOf<Int, List<DailyRecord>>()
         archivedRecords.groupBy {
             try {
                 LocalDate.parse(it.date).year
@@ -293,11 +296,13 @@ class DriveSyncCacheManager(private val context: Context) {
             }
         }.forEach { (year, recs) ->
             archiveByYear[year] = CsvConverter.toCsvString(recs, includeHeader = true)
+            archivedRecordsByYear[year] = recs
         }
 
         return BiometricsMergeResult(
             activeCsv = activeCsv,
             archiveCsvByYear = archiveByYear,
+            archivedRecordsByYear = archivedRecordsByYear,
             updatedCount = updatedCount,
             newCount = newCount,
             archivedCount = archivedRecords.size,
@@ -427,6 +432,7 @@ class DriveSyncCacheManager(private val context: Context) {
 
         val activeCsv = WorkoutCsvConverter.toCsvString(activeWorkouts, includeHeader = true)
         val archiveByYear = mutableMapOf<Int, String>()
+        val archivedWorkoutsByYear = mutableMapOf<Int, List<WorkoutItem>>()
         archivedWorkouts.groupBy {
             try {
                 LocalDate.parse(it.date).year
@@ -435,11 +441,13 @@ class DriveSyncCacheManager(private val context: Context) {
             }
         }.forEach { (year, wks) ->
             archiveByYear[year] = WorkoutCsvConverter.toCsvString(wks, includeHeader = true)
+            archivedWorkoutsByYear[year] = wks
         }
 
         return WorkoutsMergeResult(
             activeCsv = activeCsv,
             archiveCsvByYear = archiveByYear,
+            archivedWorkoutsByYear = archivedWorkoutsByYear,
             updatedCount = updatedCount,
             newCount = newCount,
             archivedCount = archivedWorkouts.size,

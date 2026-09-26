@@ -86,7 +86,7 @@ class HealthSyncWorker(
                 targetSubfolder = subfolder,
                 fileName = defaultFileName,
                 writeMode = settings.writeMode,
-                archiveMaxDays = 0,
+                archiveMaxDays = settings.archiveMaxDays,
                 isDemoMode = settings.demoModeEnabled,
                 userEmail = userEmail
             )
