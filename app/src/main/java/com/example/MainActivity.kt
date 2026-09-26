@@ -1,6 +1,7 @@
 package com.example
 
 import android.os.Bundle
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -170,6 +171,18 @@ class MainActivity : ComponentActivity() {
                 val uiState by viewModel.uiState.collectAsState()
                 val history by viewModel.history.collectAsState()
                 val diagnosticLogs by viewModel.diagnosticLogs.collectAsState()
+
+                // Keep screen awake while bulk export is running to prevent Android Doze mode from killing network sockets
+                DisposableEffect(uiState.bulkExportState.isRunning) {
+                    if (uiState.bulkExportState.isRunning) {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                    onDispose {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                }
 
                 LaunchedEffect(Unit) {
                     viewModel.userConsentIntentEvent.collect { consentIntent ->
