@@ -133,7 +133,8 @@ fun SettingsScreen(
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary
                         ),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                         modifier = Modifier.testTag("settings_switch_account_button")
                     ) {
                         Text(
@@ -142,12 +143,8 @@ fun SettingsScreen(
                             fontWeight = FontWeight.Bold
                         )
                     }
-                }
-            }
-
-            if (uiState.settings.isGoogleConnected) {
-                if (hasDriveToken || uiState.settings.demoModeEnabled) {
-                    // Simple Green "Connected" Badge
+                } else if (hasDriveToken || uiState.settings.demoModeEnabled) {
+                    // Space-optimized Green "Connected" Badge inline with account
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = Color(0xFFE6F4EA),
@@ -155,25 +152,29 @@ fun SettingsScreen(
                         modifier = Modifier.testTag("google_drive_connected_badge")
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = null,
                                 tint = Color(0xFF137333),
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(13.dp)
                             )
                             Text(
                                 text = "Connected",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 11.5.sp,
                                 color = Color(0xFF137333)
                             )
                         }
                     }
-                } else {
+                }
+            }
+
+            if (uiState.settings.isGoogleConnected) {
+                if (!hasDriveToken && !uiState.settings.demoModeEnabled) {
                     // Authorization Required Warning Box
                     Surface(
                         shape = RoundedCornerShape(10.dp),
@@ -319,24 +320,44 @@ fun SettingsScreen(
                     }
                 }
 
-                // Verify Drive Connection Button
-                Button(
-                    onClick = onTestDriveConnection,
-                    enabled = !uiState.isTestingDrive,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    ),
-                    modifier = Modifier.fillMaxWidth().testTag("test_drive_connection_button")
+                // Actions Row: Verify Connection & Sign Out side-by-side
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (uiState.isTestingDrive) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Verifying Drive connection...", fontWeight = FontWeight.Bold)
-                    } else {
-                        Icon(Icons.Default.CloudDone, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Verify Drive Connection", fontWeight = FontWeight.Bold)
+                    Button(
+                        onClick = onTestDriveConnection,
+                        enabled = !uiState.isTestingDrive,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.weight(1.3f).testTag("test_drive_connection_button")
+                    ) {
+                        if (uiState.isTestingDrive) {
+                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Verifying...", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        } else {
+                            Icon(Icons.Default.CloudDone, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Verify Connection", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = onDisconnectGoogle,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        modifier = Modifier.weight(0.9f).testTag("settings_sign_out_button")
+                    ) {
+                        Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Sign Out", fontSize = 11.5.sp)
                     }
                 }
 
@@ -375,21 +396,6 @@ fun SettingsScreen(
                                 Icon(Icons.Default.Close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
                             }
                         }
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    OutlinedButton(
-                        onClick = onDisconnectGoogle,
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                        modifier = Modifier.testTag("settings_sign_out_button")
-                    ) {
-                        Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Sign Out", fontSize = 12.sp)
                     }
                 }
             }
@@ -462,45 +468,71 @@ fun SettingsScreen(
                     if (uiState.settings.isHealthConnectEnabled) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
 
+                        val isGoodHc = isHcOk || uiState.settings.demoModeEnabled
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
+                            // Space-optimized status badge matching Connected badge
                             Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = if (isHcOk || uiState.settings.demoModeEnabled) Color(0xFFE6F4EA) else Color(0xFFFEF7E0),
-                                border = BorderStroke(1.dp, if (isHcOk || uiState.settings.demoModeEnabled) Color(0xFFCEEAD6) else Color(0xFFFEEFC3))
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isGoodHc) Color(0xFFE6F4EA) else Color(0xFFFEF7E0),
+                                border = BorderStroke(1.dp, if (isGoodHc) Color(0xFFCEEAD6) else Color(0xFFFEEFC3)),
+                                modifier = Modifier.testTag("health_connect_status_badge")
                             ) {
-                                Text(
-                                    text = if (uiState.settings.demoModeEnabled) "Demo Mode (Mock data)" else if (isHcOk) "Permissions Granted" else "Permissions Needed",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (isHcOk || uiState.settings.demoModeEnabled) Color(0xFF137333) else Color(0xFFB06000),
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isGoodHc) Icons.Default.CheckCircle else Icons.Default.Warning,
+                                        contentDescription = null,
+                                        tint = if (isGoodHc) Color(0xFF137333) else Color(0xFFB06000),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Text(
+                                        text = if (uiState.settings.demoModeEnabled) "Demo Mode" else if (isHcOk) "Permissions Granted" else "Permissions Needed",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isGoodHc) Color(0xFF137333) else Color(0xFFB06000)
+                                    )
+                                }
                             }
 
                             if (!isHcOk && !uiState.settings.demoModeEnabled) {
-                                Button(
-                                    onClick = onRequestHealthPermissions,
-                                    shape = RoundedCornerShape(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                    modifier = Modifier.testTag("settings_grant_hc_perms_btn")
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Text("Grant Permissions", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    IconButton(
+                                        onClick = onOpenHealthConnectSettings,
+                                        modifier = Modifier.size(32.dp).testTag("open_hc_settings_btn")
+                                    ) {
+                                        Icon(Icons.Default.Settings, contentDescription = "Settings", modifier = Modifier.size(16.dp))
+                                    }
+                                    Button(
+                                        onClick = onRequestHealthPermissions,
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp),
+                                        modifier = Modifier.testTag("settings_grant_hc_perms_btn")
+                                    ) {
+                                        Text("Grant", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            } else {
+                                OutlinedButton(
+                                    onClick = onOpenHealthConnectSettings,
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp),
+                                    modifier = Modifier.testTag("open_hc_settings_btn")
+                                ) {
+                                    Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(13.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Settings", fontSize = 11.5.sp)
                                 }
                             }
-                        }
-
-                        OutlinedButton(
-                            onClick = onOpenHealthConnectSettings,
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth().testTag("open_hc_settings_btn")
-                        ) {
-                            Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(15.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Health Connect Permissions & Settings", fontSize = 11.5.sp)
                         }
                     }
                 }

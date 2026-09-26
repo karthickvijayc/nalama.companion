@@ -231,27 +231,12 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                             Column {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                                ) {
-                                                    Text(
-                                                        text = "Nalama Health Companion",
-                                                        fontWeight = FontWeight.Bold,
-                                                        fontSize = 15.sp,
-                                                        color = MaterialTheme.colorScheme.primary
-                                                    )
-                                                    val enabledSourcesList = buildList {
-                                                        if (uiState.settings.isHealthConnectEnabled) add("Health Connect")
-                                                        if (uiState.settings.isHevyEnabled) add("Hevy")
-                                                    }
-                                                    Text(
-                                                        text = if (enabledSourcesList.isNotEmpty()) "• " + enabledSourcesList.joinToString(" & ") else "• No Source Enabled",
-                                                        fontWeight = FontWeight.Medium,
-                                                        fontSize = 12.sp,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                }
+                                                Text(
+                                                    text = "Nalama Health Companion",
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 15.sp,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
                                                 Text(
                                                     text = "Companion for Nalama (nalama.family)",
                                                     style = MaterialTheme.typography.bodySmall,
