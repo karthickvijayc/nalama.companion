@@ -246,15 +246,44 @@ class DriveSyncCacheManager(private val context: Context) {
         if (!existingCsv.isNullOrBlank()) {
             val records = parseCsvRecords(existingCsv)
             if (records.size > 1) {
+                val rawDates = (1 until records.size).map { records[it].getOrNull(0)?.trim() ?: "" }
                 // Parse existing rows back into DailyRecord shells for date deduplication
                 for (i in 1 until records.size) {
                     val cols = records[i]
                     if (cols.isNotEmpty()) {
-                        val date = cols.getOrNull(0)?.trim() ?: ""
+                        var date = cols.getOrNull(0)?.trim() ?: ""
                         if (!date.matches(Regex("""\d{4}-\d{2}-\d{2}"""))) {
                             continue
                         }
-                        val record = parseCsvLineToDailyRecord(cols)
+
+                        // Auto-repair sequential interpolation if row i is bracketed by d-1 and d+1
+                        // (e.g. 2026-10-10 between 03-09 and 03-11, or 2026-03-30 between 07-29 and 07-31)
+                        val prevDateStr = rawDates.getOrNull(i - 2)
+                        val nextDateStr = rawDates.getOrNull(i)
+                        if (!prevDateStr.isNullOrBlank() && !nextDateStr.isNullOrBlank() &&
+                            prevDateStr.matches(Regex("""\d{4}-\d{2}-\d{2}""")) &&
+                            nextDateStr.matches(Regex("""\d{4}-\d{2}-\d{2}"""))) {
+                            try {
+                                val prevD = LocalDate.parse(prevDateStr)
+                                val nextD = LocalDate.parse(nextDateStr)
+                                if (prevD.plusDays(2) == nextD) {
+                                    val expectedD = prevD.plusDays(1).toString()
+                                    if (date != expectedD) {
+                                        AppLogger.w("SYNC", "Auto-repaired corrupted date in CSV row $i: '$date' -> '$expectedD' (bracketed by $prevDateStr and $nextDateStr)")
+                                        date = expectedD
+                                    }
+                                }
+                            } catch (_: Exception) {}
+                        }
+
+                        // Reject non-bracketed future dates beyond tomorrow
+                        val todayStr = LocalDate.now().plusDays(1).toString()
+                        if (date > todayStr) {
+                            AppLogger.w("SYNC", "Discarded future biometrics row with date: $date")
+                            continue
+                        }
+
+                        val record = parseCsvLineToDailyRecord(cols).copy(date = date)
                         if (hasDailyData(record)) {
                             recordMap[date] = record
                         }
@@ -592,20 +621,30 @@ class DriveSyncCacheManager(private val context: Context) {
 
         val steps = cols.getOrNull(2)?.trim()?.toLongOrNull() ?: 0L
         var distance = cols.getOrNull(3)?.trim()?.toDoubleOrNull() ?: 0.0
-        if (distance == 0.0 && steps > 0) {
+        val minExpectedDistance = steps * 0.40
+        if ((distance == 0.0 || distance < minExpectedDistance) && steps > 0) {
             distance = ((steps * 0.762) * 10).roundToInt() / 10.0
         }
 
         var totalCalories = cols.getOrNull(4)?.trim()?.toDoubleOrNull() ?: 0.0
         var activeCalories = cols.getOrNull(5)?.trim()?.toDoubleOrNull() ?: 0.0
-        if (activeCalories == 0.0 && totalCalories > 0.0) {
-            activeCalories = totalCalories
-        } else if (totalCalories == 0.0 && activeCalories > 0.0) {
-            totalCalories = activeCalories
-        } else if (totalCalories == 0.0 && steps > 0) {
+        val minExpectedCalories = steps * 0.03
+        if (totalCalories < minExpectedCalories && steps > 1500) {
             val est = ((steps * 0.045) * 10).roundToInt() / 10.0
             totalCalories = est
-            activeCalories = est
+            if (activeCalories < minExpectedCalories) {
+                activeCalories = est
+            }
+        } else {
+            if (activeCalories == 0.0 && totalCalories > 0.0) {
+                activeCalories = totalCalories
+            } else if (totalCalories == 0.0 && activeCalories > 0.0) {
+                totalCalories = activeCalories
+            } else if (totalCalories == 0.0 && steps > 0) {
+                val est = ((steps * 0.045) * 10).roundToInt() / 10.0
+                totalCalories = est
+                activeCalories = est
+            }
         }
 
         val activeDuration = cols.getOrNull(6)?.trim()?.toLongOrNull() ?: 0L
@@ -637,7 +676,10 @@ class DriveSyncCacheManager(private val context: Context) {
 
         val weight = cols.getOrNull(22)?.trim()?.toDoubleOrNull()
         val bodyFat = cols.getOrNull(23)?.trim()?.toDoubleOrNull()
-        val leanMass = cols.getOrNull(24)?.trim()?.toDoubleOrNull()
+        var leanMass = cols.getOrNull(24)?.trim()?.toDoubleOrNull()
+        if (leanMass == null && weight != null && bodyFat != null && bodyFat in 1.0..99.0) {
+            leanMass = ((weight * (1.0 - (bodyFat / 100.0))) * 10).roundToInt() / 10.0
+        }
 
         return DailyRecord(
             date = date,

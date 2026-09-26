@@ -133,8 +133,10 @@ class HealthConnectManager(private val context: Context) {
             }
         } catch (_: Exception) {}
 
-        // Estimate walking distance if GPS distance was not logged but steps were recorded (~0.762m/step)
-        if (totalDistanceMeters == 0.0 && totalSteps > 0) {
+        // Estimate walking distance if GPS distance was not logged or was only partial relative to steps
+        // (stride length < 0.40m indicates partial GPS tracking where indoor/general steps were omitted from distance)
+        val minExpectedDistanceMeters = totalSteps * 0.40
+        if ((totalDistanceMeters == 0.0 || totalDistanceMeters < minExpectedDistanceMeters) && totalSteps > 0) {
             totalDistanceMeters = totalSteps * 0.762
         }
 
@@ -171,6 +173,16 @@ class HealthConnectManager(private val context: Context) {
             val est = (totalSteps * 0.045 * 10).roundToInt() / 10.0
             totalCaloriesKcal = est
             activeCaloriesKcal = est
+        }
+
+        // Reconcile if recorded total calories are implausibly low relative to step count (e.g. partial GPS session calories)
+        val minExpectedCaloriesKcal = totalSteps * 0.03
+        if (totalCaloriesKcal < minExpectedCaloriesKcal && totalSteps > 1500) {
+            val est = (totalSteps * 0.045 * 10).roundToInt() / 10.0
+            totalCaloriesKcal = est
+            if (activeCaloriesKcal < minExpectedCaloriesKcal) {
+                activeCaloriesKcal = est
+            }
         }
 
         // 5. Active Duration (from Exercise Sessions)
@@ -246,6 +258,24 @@ class HealthConnectManager(private val context: Context) {
                     avg = (rates.average() * 10).roundToInt() / 10.0
                 )
                 rhrResp.records.forEach { sourcesSet.add(it.metadata.dataOrigin.packageName) }
+            } else {
+                // Samsung Health does not write RestingHeartRateRecord, but logs continuous HeartRateRecord
+                val hrResp = client.readRecords(
+                    ReadRecordsRequest(recordType = HeartRateRecord::class, timeRangeFilter = timeRange)
+                )
+                val allSamples = hrResp.records.flatMap { it.samples }.map { it.beatsPerMinute.toDouble() }
+                if (allSamples.isNotEmpty()) {
+                    val sorted = allSamples.sorted()
+                    // 10th percentile represents resting/basal heart rate during inactivity/sleep
+                    val p10Index = (sorted.size * 0.10).toInt().coerceIn(0, sorted.size - 1)
+                    val restingEst = sorted[p10Index]
+                    restingHeartRateBpm = ValueMinMaxAvg(
+                        min = sorted.first(),
+                        max = sorted.last(),
+                        avg = (restingEst * 10).roundToInt() / 10.0
+                    )
+                    hrResp.records.forEach { sourcesSet.add(it.metadata.dataOrigin.packageName) }
+                }
             }
         } catch (_: Exception) {}
 
@@ -317,6 +347,9 @@ class HealthConnectManager(private val context: Context) {
             leanResp.records.lastOrNull()?.let {
                 leanBodyMassKg = (it.mass.inKilograms * 10).roundToInt() / 10.0
                 sourcesSet.add(it.metadata.dataOrigin.packageName)
+            }
+            if (leanBodyMassKg == null && weightKg != null && bodyFatPct != null && bodyFatPct!! in 1.0..99.0) {
+                leanBodyMassKg = ((weightKg!! * (1.0 - (bodyFatPct!! / 100.0))) * 10).roundToInt() / 10.0
             }
         } catch (_: Exception) {}
 

@@ -436,4 +436,75 @@ workout_id,date,title,start_time,end_time,duration_minutes,total_volume_kg,total
         assertTrue(result.activeCsv.contains(oldDate1))
         assertTrue(result.activeCsv.contains(oldDate2))
     }
+
+    @Test
+    fun testSequentialDateAutoRepair() {
+        val corruptedCsv = """
+            date,sources,steps,distance_meters,total_calories_kcal,active_calories_kcal,active_duration_minutes,vo2_max_avg,total_sleep_minutes,light_sleep_minutes,deep_sleep_minutes,rem_sleep_minutes,awake_minutes,sleep_efficiency_score,resting_hr_min,resting_hr_max,resting_hr_avg,hrv_ms_avg,oxygen_saturation_pct_avg,bp_systolic,bp_diastolic,bp_pulse,weight_kg,body_fat_pct,lean_body_mass_kg
+            2026-03-09,com.sec.android.app.shealth,21776,16593.3,971.2,971.2,122,,,,,,,,,,,,,,,,,,
+            2026-10-10,com.sec.android.app.shealth,20249,15429.7,876.3,876.3,101,,,,,,,,,,,,,,,,,,
+            2026-03-11,com.sec.android.app.shealth,13919,10606.3,747.5,747.5,90,,,,,,,,,,,,,,,,,,
+            2026-07-29,com.sec.android.app.shealth,5650,4305.3,254.3,254.3,0,,,,,,,,,,,,,,,,,,
+            2026-03-30,com.sec.android.app.shealth,5429,4136.9,244.3,244.3,0,,,,,,,,,,,,,,,,,,
+            2026-07-31,com.sec.android.app.shealth,14884,11341.6,669.8,669.8,0,,,,,,,,,,,,,,,,,,
+        """.trimIndent()
+
+        val result = cacheManager.mergeBiometricsCsv(
+            existingCsv = corruptedCsv,
+            incomingRecords = emptyList(),
+            archiveMaxDays = 0 // retain all in active for verification
+        )
+
+        // 2026-10-10 between 03-09 and 03-11 must be auto-repaired to 2026-03-10
+        assertTrue(result.activeCsv.contains("2026-03-10,com.sec.android.app.shealth,20249"))
+        assertFalse(result.activeCsv.contains("2026-10-10"))
+
+        // 2026-03-30 between 07-29 and 07-31 must be auto-repaired to 2026-07-30
+        assertTrue(result.activeCsv.contains("2026-07-30,com.sec.android.app.shealth,5429"))
+        assertFalse(result.activeCsv.contains("2026-03-30,com.sec.android.app.shealth,5429"))
+    }
+
+    @Test
+    fun testPartialDistanceAndCalorieReconciliation() {
+        // High step count (33,932) with only partial GPS distance (546.7m) and partial calories (81 kcal)
+        val line = listOf(
+            "2026-07-16", "com.sec.android.app.shealth", "33932", "546.7", "81.0", "81.0", "13",
+            "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""
+        )
+        val csv = "date,sources,steps,distance_meters,total_calories_kcal,active_calories_kcal,active_duration_minutes,vo2_max_avg,total_sleep_minutes,light_sleep_minutes,deep_sleep_minutes,rem_sleep_minutes,awake_minutes,sleep_efficiency_score,resting_hr_min,resting_hr_max,resting_hr_avg,hrv_ms_avg,oxygen_saturation_pct_avg,bp_systolic,bp_diastolic,bp_pulse,weight_kg,body_fat_pct,lean_body_mass_kg\n" +
+                line.joinToString(",")
+
+        val result = cacheManager.mergeBiometricsCsv(
+            existingCsv = csv,
+            incomingRecords = emptyList(),
+            archiveMaxDays = 0
+        )
+
+        // Distance should be estimated from steps (33932 * 0.762 = 25856.2m)
+        assertTrue(result.activeCsv.contains("25856.2"))
+        assertFalse(result.activeCsv.contains(",546.7,"))
+
+        // Calories should be estimated from steps (33932 * 0.045 = 1526.9 kcal)
+        assertTrue(result.activeCsv.contains("1526.9"))
+        assertFalse(result.activeCsv.contains(",81.0,"))
+    }
+
+    @Test
+    fun testLeanBodyMassDerivationFromWeightAndBodyFat() {
+        val line = listOf(
+            "2026-04-17", "cn.fitdays.fitdays", "5000", "3810.0", "225.0", "225.0", "0",
+            "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "90.7", "29.3", ""
+        )
+        val csv = "date,sources,steps,distance_meters,total_calories_kcal,active_calories_kcal,active_duration_minutes,vo2_max_avg,total_sleep_minutes,light_sleep_minutes,deep_sleep_minutes,rem_sleep_minutes,awake_minutes,sleep_efficiency_score,resting_hr_min,resting_hr_max,resting_hr_avg,hrv_ms_avg,oxygen_saturation_pct_avg,bp_systolic,bp_diastolic,bp_pulse,weight_kg,body_fat_pct,lean_body_mass_kg\n" +
+                line.joinToString(",")
+
+        val result = cacheManager.mergeBiometricsCsv(
+            existingCsv = csv,
+            incomingRecords = emptyList(),
+            archiveMaxDays = 0
+        )
+
+        // 90.7 kg * (1 - 0.293) = 64.1 kg lean mass
+        assertTrue(result.activeCsv.contains("90.7,29.3,64.1"))
+    }
 }
