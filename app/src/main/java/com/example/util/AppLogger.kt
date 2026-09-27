@@ -155,7 +155,6 @@ object AppLogger {
         connectedEmail: String,
         targetFolder: String,
         hasToken: Boolean,
-        isDemoMode: Boolean,
         cacheSummary: com.example.drive.CacheSummary,
         oauthClientInfo: String = ""
     ): String {
@@ -163,7 +162,6 @@ object AppLogger {
             • Connected Account: ${if (connectedEmail.isNotBlank()) connectedEmail else "(None)"}
             • Target Folder: $targetFolder
             • Drive Token Configured: $hasToken
-            • Demo/Offline Mode: $isDemoMode
             • Local Cache Indexed Files: ${cacheSummary.fileCount}
             • Local Cache Indexed Folders: ${cacheSummary.folderCount}
             • Local Cache Total Size: ${cacheSummary.totalSizeBytes / 1024} KB

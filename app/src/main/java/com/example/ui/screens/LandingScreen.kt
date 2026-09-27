@@ -39,7 +39,6 @@ fun LandingScreen(
     onRequestGoogleSignIn: () -> Unit = {},
     onSignInWithGoogle: (email: String, displayName: String) -> Unit,
     onSelectLanguage: (String) -> Unit = {},
-    onTryOfflineDemo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var isPermissionNoticeExpanded by remember { mutableStateOf(false) }
@@ -342,21 +341,6 @@ fun LandingScreen(
                                 .testTag("link_terms_service")
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Tester Offline Demo Link
-                    Text(
-                        text = "Are you a Tester? Try Offline Demo Mode",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFF36245A),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable { onTryOfflineDemo() }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                            .testTag("landing_try_demo_button")
-                    )
                 }
             }
 

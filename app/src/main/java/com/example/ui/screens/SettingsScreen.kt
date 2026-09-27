@@ -49,7 +49,6 @@ fun SettingsScreen(
     onUpdateAutoSync: (Boolean) -> Unit = {},
     onUpdateCustomFolderPath: (String) -> Unit = {},
     onUpdateTimezone: (String) -> Unit = {},
-    onToggleDemoMode: (Boolean) -> Unit = {},
     onRequestHealthPermissions: () -> Unit = {},
     onRequestGoogleSignIn: () -> Unit = {},
     onAuthorizeDrive: () -> Unit = {},
@@ -108,8 +107,6 @@ fun SettingsScreen(
                     Text(
                         text = if (uiState.settings.isGoogleConnected) {
                             uiState.settings.connectedDisplayName.ifEmpty { "Google Account" }
-                        } else if (uiState.settings.demoModeEnabled) {
-                            "Offline Demo Mode"
                         } else {
                             "Not Connected"
                         },
@@ -144,7 +141,7 @@ fun SettingsScreen(
                             fontWeight = FontWeight.Bold
                         )
                     }
-                } else if (hasDriveToken || uiState.settings.demoModeEnabled) {
+                } else if (hasDriveToken) {
                     // Space-optimized Green "Connected" Badge inline with account
                     Surface(
                         shape = RoundedCornerShape(8.dp),
@@ -175,7 +172,7 @@ fun SettingsScreen(
             }
 
             if (uiState.settings.isGoogleConnected) {
-                if (!hasDriveToken && !uiState.settings.demoModeEnabled) {
+                if (!hasDriveToken) {
                     // Authorization Required Warning Box
                     Surface(
                         shape = RoundedCornerShape(10.dp),
@@ -469,7 +466,7 @@ fun SettingsScreen(
                     if (uiState.settings.isHealthConnectEnabled) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
 
-                        val isGoodHc = isHcOk || uiState.settings.demoModeEnabled
+                        val isGoodHc = isHcOk
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -494,7 +491,7 @@ fun SettingsScreen(
                                         modifier = Modifier.size(13.dp)
                                     )
                                     Text(
-                                        text = if (uiState.settings.demoModeEnabled) "Demo Mode" else if (isHcOk) "Permissions Granted" else "Permissions Needed",
+                                        text = if (isHcOk) "Permissions Granted" else "Permissions Needed",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = if (isGoodHc) Color(0xFF137333) else Color(0xFFB06000)
@@ -502,7 +499,7 @@ fun SettingsScreen(
                                 }
                             }
 
-                            if (!isHcOk && !uiState.settings.demoModeEnabled) {
+                            if (!isHcOk) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)

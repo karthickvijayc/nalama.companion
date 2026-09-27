@@ -437,46 +437,6 @@ class HealthConnectManager(private val context: Context) {
     }
 
     /**
-     * Generates standard sample record strictly matching the schema.
-     * Used exclusively in Demo Simulation Mode and in emulator environments.
-     */
-    fun generateSampleRecord(date: LocalDate, customSource: String? = null): DailyRecord {
-        val sources = listOf("com.sec.android.app.shealth", "com.google.android.apps.fitness")
-
-        return DailyRecord(
-            date = date.format(DateTimeFormatter.ISO_LOCAL_DATE),
-            sources = sources,
-            activity = ActivityMetrics(
-                steps = 8420,
-                distanceMeters = 6120.0,
-                totalCaloriesKcal = 2240.0,
-                activeCaloriesKcal = 480.0,
-                activeDurationMinutes = 48,
-                vo2MaxMlKgMin = ValueAvg(avg = 42.5)
-            ),
-            sleep = SleepMetrics(
-                totalSleepMinutes = 450,
-                lightSleepMinutes = 240,
-                deepSleepMinutes = 95,
-                remSleepMinutes = 85,
-                awakeMinutes = 30,
-                sleepEfficiencyScore = 92
-            ),
-            vitals = VitalsMetrics(
-                restingHeartRateBpm = ValueMinMaxAvg(min = 56.0, max = 68.0, avg = 61.0),
-                heartRateVariabilityMs = ValueAvg(avg = 48.0),
-                oxygenSaturationPct = ValueAvg(avg = 98.5),
-                bloodPressureMmHg = BloodPressure(systolic = 118.0, diastolic = 76.0, pulse = 62.0)
-            ),
-            bodyMeasurements = BodyMeasurements(
-                weightKg = 72.4,
-                bodyFatPct = 18.2,
-                leanBodyMassKg = 59.2
-            )
-        )
-    }
-
-    /**
      * Reads Health Connect metrics across a historical range of dates.
      * Implements cooperative throttling delays between days to prevent CPU/battery drain
      * and avoid Android Health Connect IPC rate limits / throttling.
@@ -486,7 +446,6 @@ class HealthConnectManager(private val context: Context) {
         startDate: LocalDate,
         endDate: LocalDate,
         zoneId: ZoneId,
-        isDemoMode: Boolean = false,
         onProgress: (current: Int, total: Int, date: LocalDate) -> Unit
     ): List<DailyRecord> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val totalDays = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate).toInt() + 1
@@ -500,9 +459,7 @@ class HealthConnectManager(private val context: Context) {
             processedCount++
             onProgress(processedCount, totalDays, currentDate)
 
-            val record = if (isDemoMode) {
-                generateSampleRecord(currentDate, "Demo History")
-            } else if (checkAvailability() == HealthConnectAvailability.AVAILABLE && hasAllPermissions()) {
+            val record = if (checkAvailability() == HealthConnectAvailability.AVAILABLE && hasAllPermissions()) {
                 var attempts = 0
                 var dayRecord: DailyRecord? = null
                 while (attempts < 2 && dayRecord == null) {
@@ -522,7 +479,7 @@ class HealthConnectManager(private val context: Context) {
                 createEmptyDailyRecord(currentDate)
             }
 
-            if (isDemoMode || record.sources.isNotEmpty() || record.activity.steps > 0 || record.activity.totalCaloriesKcal > 0 || record.sleep.totalSleepMinutes > 0 || record.vitals.restingHeartRateBpm != null || record.bodyMeasurements.weightKg != null) {
+            if (record.sources.isNotEmpty() || record.activity.steps > 0 || record.activity.totalCaloriesKcal > 0 || record.sleep.totalSleepMinutes > 0 || record.vitals.restingHeartRateBpm != null || record.bodyMeasurements.weightKg != null) {
                 results.add(record)
             }
             currentDate = currentDate.plusDays(1)

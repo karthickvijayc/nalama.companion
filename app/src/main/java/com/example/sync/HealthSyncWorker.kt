@@ -77,71 +77,68 @@ class HealthSyncWorker(
         if (isHc) {
             val hcFolder = TargetFolder.HEALTH_DATA
             val healthManager = HealthConnectManager(context)
-            val today = now.toLocalDate()
+            val availability = healthManager.checkAvailability()
 
-            val dailyRecords: List<DailyRecord> = if (settings.demoModeEnabled) {
-                listOf(healthManager.generateSampleRecord(today, "Demo Mode"))
+            if (availability != HealthConnectAvailability.AVAILABLE || !healthManager.hasAllPermissions()) {
+                val err = if (availability != HealthConnectAvailability.AVAILABLE) "Health Connect not available" else "Health Connect permissions missing"
+                AppLogger.w("SYNC", "Background sync skipped for HC: $err")
+                errorSummaries.add(err)
             } else {
-                val availability = healthManager.checkAvailability()
-                if (availability == HealthConnectAvailability.AVAILABLE && healthManager.hasAllPermissions()) {
-                    val record = healthManager.readDailyRecord(today, zoneId)
-                    listOf(record)
-                } else {
-                    listOf(healthManager.generateSampleRecord(today, "HealthConnect"))
-                }
-            }
+                val today = now.toLocalDate()
+                val record = healthManager.readDailyRecord(today, zoneId)
+                val dailyRecords = listOf(record)
 
-            val exportPayload = BiometricsExportPayload(
-                exportVersion = "1.0",
-                sourceApp = "HealthConnect",
-                timezone = settings.timezoneId,
-                exportedAt = ZonedDateTime.now().format(DateTimeFormatter.ISO_INSTANT),
-                dailyRecords = dailyRecords
-            )
-
-            val directResult = driveClient.syncBiometricsDirectly(
-                accessToken = activeToken,
-                payload = exportPayload,
-                folderPath = hcFolder.folderPath,
-                targetSubfolder = hcFolder.subfolder,
-                fileName = hcFolder.defaultFileName,
-                writeMode = settings.writeMode,
-                archiveMaxDays = settings.archiveMaxDays,
-                isDemoMode = settings.demoModeEnabled,
-                userEmail = userEmail
-            )
-
-            val csvPreview = CsvConverter.toCsvString(exportPayload.dailyRecords, settings.writeMode == WriteMode.OVERWRITE)
-
-            val status = when {
-                directResult.isSuccess -> { anySuccess = true; ExportStatus.SUCCESS }
-                directResult.isLocalOnlyFallback -> { anyLocalFallback = true; ExportStatus.LOCAL_ONLY }
-                else -> ExportStatus.FAILED
-            }
-
-            historyStore.addHistoryItem(
-                ExportHistoryItem(
-                    id = UUID.randomUUID().toString(),
-                    timestamp = startTime,
-                    formattedDate = formattedNow,
-                    status = status,
-                    writeMode = settings.writeMode,
-                    folderPath = hcFolder.folderPath,
-                    recordsCount = dailyRecords.size,
-                    message = directResult.message,
-                    payloadPreviewCsv = csvPreview,
-                    isManualTrigger = isManual,
+                val exportPayload = BiometricsExportPayload(
+                    exportVersion = "1.0",
                     sourceApp = "HealthConnect",
-                    targetFolderUrl = directResult.targetFolderUrl
+                    timezone = settings.timezoneId,
+                    exportedAt = ZonedDateTime.now().format(DateTimeFormatter.ISO_INSTANT),
+                    dailyRecords = dailyRecords
                 )
-            )
 
-            if (directResult.isSuccess) {
-                successSummaries.add("Health Connect (${dailyRecords.size} record)")
-            } else if (directResult.isLocalOnlyFallback) {
-                successSummaries.add("Health Connect (saved locally)")
-            } else {
-                errorSummaries.add("Health Connect: ${directResult.message}")
+                val directResult = driveClient.syncBiometricsDirectly(
+                    accessToken = activeToken,
+                    payload = exportPayload,
+                    folderPath = hcFolder.folderPath,
+                    targetSubfolder = hcFolder.subfolder,
+                    fileName = hcFolder.defaultFileName,
+                    writeMode = settings.writeMode,
+                    archiveMaxDays = settings.archiveMaxDays,
+                    userEmail = userEmail
+                )
+
+                val csvPreview = CsvConverter.toCsvString(exportPayload.dailyRecords, settings.writeMode == WriteMode.OVERWRITE)
+
+                val status = when {
+                    directResult.isSuccess -> { anySuccess = true; ExportStatus.SUCCESS }
+                    directResult.isLocalOnlyFallback -> { anyLocalFallback = true; ExportStatus.LOCAL_ONLY }
+                    else -> ExportStatus.FAILED
+                }
+
+                historyStore.addHistoryItem(
+                    ExportHistoryItem(
+                        id = UUID.randomUUID().toString(),
+                        timestamp = startTime,
+                        formattedDate = formattedNow,
+                        status = status,
+                        writeMode = settings.writeMode,
+                        folderPath = hcFolder.folderPath,
+                        recordsCount = dailyRecords.size,
+                        message = directResult.message,
+                        payloadPreviewCsv = csvPreview,
+                        isManualTrigger = isManual,
+                        sourceApp = "HealthConnect",
+                        targetFolderUrl = directResult.targetFolderUrl
+                    )
+                )
+
+                if (directResult.isSuccess) {
+                    successSummaries.add("Health Connect (${dailyRecords.size} record)")
+                } else if (directResult.isLocalOnlyFallback) {
+                    successSummaries.add("Health Connect (saved locally)")
+                } else {
+                    errorSummaries.add("Health Connect: ${directResult.message}")
+                }
             }
         }
 
@@ -151,67 +148,65 @@ class HealthSyncWorker(
             val hevyManager = HevySyncManager()
             val healthManager = HealthConnectManager(context)
             val fetchResult = hevyManager.fetchWorkouts(
-                apiKey = settings.hevyApiKey,
-                isDemoMode = settings.demoModeEnabled
-            )
-            val basePayload = fetchResult.getOrElse {
-                WorkoutsExportPayload(
-                    exportVersion = "1.0",
-                    sourceApp = "Hevy",
-                    syncedAt = ZonedDateTime.now().format(DateTimeFormatter.ISO_INSTANT),
-                    workouts = hevyManager.getSampleWorkouts()
-                )
-            }
-            val enrichedWorkouts = hevyManager.enrichWithHealthConnect(
-                workouts = basePayload.workouts,
-                healthManager = healthManager,
-                zoneId = zoneId
-            )
-            val workoutsPayload = basePayload.copy(workouts = enrichedWorkouts)
-
-            val directResult = driveClient.syncWorkoutsDirectly(
-                accessToken = activeToken,
-                payload = workoutsPayload,
-                folderPath = hevyFolder.folderPath,
-                targetSubfolder = hevyFolder.subfolder,
-                fileName = hevyFolder.defaultFileName,
-                writeMode = settings.writeMode,
-                archiveMaxDays = settings.archiveMaxDays,
-                isDemoMode = settings.demoModeEnabled,
-                userEmail = userEmail
+                apiKey = settings.hevyApiKey
             )
 
-            val csvPreview = WorkoutCsvConverter.toCsvString(workoutsPayload.workouts, settings.writeMode == WriteMode.OVERWRITE)
-
-            val status = when {
-                directResult.isSuccess -> { anySuccess = true; ExportStatus.SUCCESS }
-                directResult.isLocalOnlyFallback -> { anyLocalFallback = true; ExportStatus.LOCAL_ONLY }
-                else -> ExportStatus.FAILED
-            }
-
-            historyStore.addHistoryItem(
-                ExportHistoryItem(
-                    id = UUID.randomUUID().toString(),
-                    timestamp = startTime,
-                    formattedDate = formattedNow,
-                    status = status,
-                    writeMode = settings.writeMode,
-                    folderPath = hevyFolder.folderPath,
-                    recordsCount = workoutsPayload.workouts.size,
-                    message = directResult.message,
-                    payloadPreviewCsv = csvPreview,
-                    isManualTrigger = isManual,
-                    sourceApp = "Hevy",
-                    targetFolderUrl = directResult.targetFolderUrl
-                )
-            )
-
-            if (directResult.isSuccess) {
-                successSummaries.add("Hevy (${workoutsPayload.workouts.size} workouts)")
-            } else if (directResult.isLocalOnlyFallback) {
-                successSummaries.add("Hevy (saved locally)")
+            if (fetchResult.isFailure) {
+                val err = fetchResult.exceptionOrNull()?.message ?: "Failed to fetch Hevy workouts"
+                AppLogger.w("SYNC", "Background sync skipped for Hevy: $err")
+                errorSummaries.add("Hevy: $err")
             } else {
-                errorSummaries.add("Hevy: ${directResult.message}")
+                val basePayload = fetchResult.getOrThrow()
+                val enrichedWorkouts = hevyManager.enrichWithHealthConnect(
+                    workouts = basePayload.workouts,
+                    healthManager = healthManager,
+                    zoneId = zoneId
+                )
+                val workoutsPayload = basePayload.copy(workouts = enrichedWorkouts)
+
+                val directResult = driveClient.syncWorkoutsDirectly(
+                    accessToken = activeToken,
+                    payload = workoutsPayload,
+                    folderPath = hevyFolder.folderPath,
+                    targetSubfolder = hevyFolder.subfolder,
+                    fileName = hevyFolder.defaultFileName,
+                    writeMode = settings.writeMode,
+                    archiveMaxDays = settings.archiveMaxDays,
+                    userEmail = userEmail
+                )
+
+                val csvPreview = WorkoutCsvConverter.toCsvString(workoutsPayload.workouts, settings.writeMode == WriteMode.OVERWRITE)
+
+                val status = when {
+                    directResult.isSuccess -> { anySuccess = true; ExportStatus.SUCCESS }
+                    directResult.isLocalOnlyFallback -> { anyLocalFallback = true; ExportStatus.LOCAL_ONLY }
+                    else -> ExportStatus.FAILED
+                }
+
+                historyStore.addHistoryItem(
+                    ExportHistoryItem(
+                        id = UUID.randomUUID().toString(),
+                        timestamp = startTime,
+                        formattedDate = formattedNow,
+                        status = status,
+                        writeMode = settings.writeMode,
+                        folderPath = hevyFolder.folderPath,
+                        recordsCount = workoutsPayload.workouts.size,
+                        message = directResult.message,
+                        payloadPreviewCsv = csvPreview,
+                        isManualTrigger = isManual,
+                        sourceApp = "Hevy",
+                        targetFolderUrl = directResult.targetFolderUrl
+                    )
+                )
+
+                if (directResult.isSuccess) {
+                    successSummaries.add("Hevy (${workoutsPayload.workouts.size} workouts)")
+                } else if (directResult.isLocalOnlyFallback) {
+                    successSummaries.add("Hevy (saved locally)")
+                } else {
+                    errorSummaries.add("Hevy: ${directResult.message}")
+                }
             }
         }
 

@@ -26,7 +26,6 @@ fun HealthMetricsCard(
     record: DailyRecord?,
     hasPermissions: Boolean,
     isHealthAvailable: Boolean = true,
-    isDemoMode: Boolean = false,
     onRequestPermissions: () -> Unit,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
@@ -96,7 +95,7 @@ fun HealthMetricsCard(
 
             // Body rendering based on setup & permissions
             when {
-                !isDemoMode && !isHealthAvailable -> {
+                !isHealthAvailable -> {
                     // Setup not complete: Health Connect unavailable on device
                     Surface(
                         color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
@@ -132,7 +131,7 @@ fun HealthMetricsCard(
                     }
                 }
 
-                !isDemoMode && !hasPermissions -> {
+                !hasPermissions -> {
                     // Permission not granted
                     Surface(
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),

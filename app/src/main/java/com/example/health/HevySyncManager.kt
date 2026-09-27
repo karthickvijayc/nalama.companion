@@ -258,12 +258,9 @@ class HevySyncManager {
 
     /**
      * Fetches workouts from Hevy API using the user's API Key.
-     * If no API key is set or in demo/offline mode, returns realistic sample workouts
-     * strictly matching the user's schema.
      */
     suspend fun fetchWorkouts(
         apiKey: String,
-        isDemoMode: Boolean = false,
         page: Int = 1,
         pageSize: Int = 10,
         zoneId: ZoneId = ZoneId.systemDefault()
@@ -272,28 +269,7 @@ class HevySyncManager {
         val nowIso = ZonedDateTime.now(zoneId).format(DateTimeFormatter.ISO_INSTANT)
 
         if (trimmedKey.isBlank()) {
-            if (isDemoMode) {
-                return@withContext Result.success(
-                    WorkoutsExportPayload(
-                        exportVersion = "1.0",
-                        sourceApp = "Hevy",
-                        syncedAt = nowIso,
-                        workouts = getSampleWorkouts()
-                    )
-                )
-            }
             return@withContext Result.failure(Exception("Setup not complete: Hevy API key is not configured. Generate one at https://hevy.com/settings?developer (Hevy Pro required)."))
-        }
-
-        if (isDemoMode) {
-            return@withContext Result.success(
-                WorkoutsExportPayload(
-                    exportVersion = "1.0",
-                    sourceApp = "Hevy",
-                    syncedAt = nowIso,
-                    workouts = getSampleWorkouts()
-                )
-            )
         }
 
         try {
@@ -344,25 +320,13 @@ class HevySyncManager {
      */
     suspend fun fetchAllWorkoutsPaginated(
         apiKey: String,
-        isDemoMode: Boolean = false,
         pageSize: Int = 10,
         zoneId: ZoneId = ZoneId.systemDefault(),
         onProgress: (page: Int, totalPages: Int, workoutsCount: Int) -> Unit
     ): Result<List<WorkoutItem>> = withContext(Dispatchers.IO) {
         val trimmedKey = apiKey.trim()
         if (trimmedKey.isBlank()) {
-            if (isDemoMode) {
-                val sampleWorkouts = generateHistoricalSampleWorkouts()
-                onProgress(1, 1, sampleWorkouts.size)
-                return@withContext Result.success(sampleWorkouts)
-            }
             return@withContext Result.failure(Exception("Setup not complete: Hevy API key is not configured. Generate one at https://hevy.com/settings?developer (Hevy Pro required)."))
-        }
-
-        if (isDemoMode) {
-            val sampleWorkouts = generateHistoricalSampleWorkouts()
-            onProgress(1, 1, sampleWorkouts.size)
-            return@withContext Result.success(sampleWorkouts)
         }
 
         // Pre-load templates
@@ -588,146 +552,5 @@ class HevySyncManager {
             )
         }
         return parsedWorkouts
-    }
-
-    /**
-     * Prepares sample data exactly matching the user's schema provided in prompt.
-     */
-    fun getSampleWorkouts(): List<WorkoutItem> {
-        return listOf(
-            WorkoutItem(
-                workoutId = "c45cee5b-ccf3-40a8-912a-2d9ff9cdfe09",
-                date = LocalDate.now().toString(),
-                title = "Push & Core Power",
-                startTime = "07:15",
-                endTime = "08:10",
-                durationMinutes = 55,
-                totalVolumeKg = 2062,
-                totalSets = 8,
-                avgHeartRateBpm = 134,
-                maxHeartRateBpm = 162,
-                caloriesActualHr = 380,
-                notes = "Felt strong on dumbbell presses, increased weight on set 3.",
-                exercises = listOf(
-                    WorkoutExercise(
-                        exerciseName = "Bench Press (Dumbbell)",
-                        targetMuscleGroup = "Chest",
-                        equipment = "Dumbbell",
-                        sets = listOf(
-                            ExerciseSet(setNumber = 1, setType = "warmup", weightKg = 16.0, reps = 12, rpe = 6.0),
-                            ExerciseSet(setNumber = 2, setType = "normal", weightKg = 24.0, reps = 10, rpe = 8.0),
-                            ExerciseSet(setNumber = 3, setType = "normal", weightKg = 26.0, reps = 8, rpe = 9.0),
-                            ExerciseSet(setNumber = 4, setType = "failure", weightKg = 26.0, reps = 7, rpe = 10.0)
-                        )
-                    ),
-                    WorkoutExercise(
-                        exerciseName = "Goblet Squat",
-                        targetMuscleGroup = "Quads",
-                        equipment = "Kettlebell",
-                        sets = listOf(
-                            ExerciseSet(setNumber = 1, setType = "normal", weightKg = 20.0, reps = 12, rpe = 7.0),
-                            ExerciseSet(setNumber = 2, setType = "normal", weightKg = 24.0, reps = 10, rpe = 8.5)
-                        )
-                    ),
-                    WorkoutExercise(
-                        exerciseName = "Standing Overhead Press",
-                        targetMuscleGroup = "Shoulders",
-                        equipment = "Barbell",
-                        sets = listOf(
-                            ExerciseSet(setNumber = 1, setType = "normal", weightKg = 40.0, reps = 10, rpe = 8.0),
-                            ExerciseSet(setNumber = 2, setType = "normal", weightKg = 45.0, reps = 8, rpe = 9.0)
-                        )
-                    )
-                )
-            ),
-            WorkoutItem(
-                workoutId = "a98df12b-77c1-4b11-9a3d-114f5e7832cd",
-                date = LocalDate.now().minusDays(1).toString(),
-                title = "Pull & Back Hypertrophy",
-                startTime = "07:30",
-                endTime = "08:25",
-                durationMinutes = 55,
-                totalVolumeKg = 3120,
-                totalSets = 5,
-                avgHeartRateBpm = 128,
-                maxHeartRateBpm = 158,
-                caloriesActualHr = 360,
-                notes = "Lat pulldowns felt very controlled. Solid mind-muscle connection.",
-                exercises = listOf(
-                    WorkoutExercise(
-                        exerciseName = "Lat Pulldown (Cable)",
-                        targetMuscleGroup = "Lats",
-                        equipment = "Cable",
-                        sets = listOf(
-                            ExerciseSet(setNumber = 1, setType = "normal", weightKg = 55.0, reps = 12, rpe = 7.5),
-                            ExerciseSet(setNumber = 2, setType = "normal", weightKg = 60.0, reps = 10, rpe = 8.5),
-                            ExerciseSet(setNumber = 3, setType = "normal", weightKg = 65.0, reps = 8, rpe = 9.0)
-                        )
-                    ),
-                    WorkoutExercise(
-                        exerciseName = "Barbell Romanian Deadlift",
-                        targetMuscleGroup = "Hamstrings",
-                        equipment = "Barbell",
-                        sets = listOf(
-                            ExerciseSet(setNumber = 1, setType = "normal", weightKg = 70.0, reps = 10, rpe = 8.0),
-                            ExerciseSet(setNumber = 2, setType = "normal", weightKg = 80.0, reps = 8, rpe = 9.0)
-                        )
-                    )
-                )
-            )
-        )
-    }
-
-    /**
-     * Generates a realistic set of historical workouts spanning the current year and previous years
-     * so that bulk export and yearly archiving can be tested immediately in demo mode.
-     */
-    fun generateHistoricalSampleWorkouts(): List<WorkoutItem> {
-        val workouts = mutableListOf<WorkoutItem>()
-        workouts.addAll(getSampleWorkouts())
-
-        val now = LocalDate.now()
-        val routineTitles = listOf(
-            "Legs & Core Hypertrophy",
-            "Chest & Triceps Push",
-            "Back & Biceps Pull",
-            "Shoulders & Abs Circuit",
-            "Full Body Functional Strength"
-        )
-
-        // Generate past 18 months of periodic workouts
-        for (monthOffset in 1..18) {
-            val date = now.minusMonths(monthOffset.toLong()).withDayOfMonth((monthOffset % 25) + 1)
-            val title = routineTitles[monthOffset % routineTitles.size]
-            workouts.add(
-                WorkoutItem(
-                    workoutId = UUID.randomUUID().toString(),
-                    date = date.toString(),
-                    title = "$title ($monthOffset mo ago)",
-                    startTime = "06:30",
-                    endTime = "07:25",
-                    durationMinutes = 55,
-                    totalVolumeKg = 4200 + (monthOffset * 80),
-                    totalSets = 15,
-                    avgHeartRateBpm = 132,
-                    maxHeartRateBpm = 160,
-                    caloriesActualHr = 370,
-                    notes = "Historical session exported during bulk sync.",
-                    exercises = listOf(
-                        WorkoutExercise(
-                            exerciseName = "Barbell Squat",
-                            targetMuscleGroup = "Quads",
-                            equipment = "Barbell",
-                            sets = listOf(
-                                ExerciseSet(setNumber = 1, setType = "warmup", weightKg = 60.0, reps = 10, rpe = 6.0),
-                                ExerciseSet(setNumber = 2, setType = "normal", weightKg = 90.0, reps = 8, rpe = 8.0),
-                                ExerciseSet(setNumber = 3, setType = "normal", weightKg = 100.0, reps = 6, rpe = 9.0)
-                            )
-                        )
-                    )
-                )
-            )
-        }
-        return workouts.sortedByDescending { it.date }
     }
 }

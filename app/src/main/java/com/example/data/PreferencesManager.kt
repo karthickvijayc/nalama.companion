@@ -21,7 +21,6 @@ data class AppSettings(
     val syncIntervalMinutes: Int = 15,                 // Default to 15 mins
     val autoSyncEnabled: Boolean = true,
     val timezoneId: String = "Asia/Kolkata",            // Matching schema timezone
-    val demoModeEnabled: Boolean = false,              // Allows immediate testing in emulator
     val lastSyncTimestamp: Long = 0L,
     val lastSyncStatus: String = "Never synced",
     val lastSyncSuccess: Boolean? = null,
@@ -70,7 +69,6 @@ class PreferencesManager(context: Context) {
             syncIntervalMinutes = prefs.getInt(KEY_SYNC_INTERVAL, 15),
             autoSyncEnabled = prefs.getBoolean(KEY_AUTO_SYNC, true),
             timezoneId = prefs.getString(KEY_TIMEZONE, "Asia/Kolkata") ?: "Asia/Kolkata",
-            demoModeEnabled = prefs.getBoolean(KEY_DEMO_MODE, false),
             lastSyncTimestamp = prefs.getLong(KEY_LAST_SYNC_TIME, 0L),
             lastSyncStatus = prefs.getString(KEY_LAST_SYNC_STATUS, "Never synced") ?: "Never synced",
             lastSyncSuccess = if (prefs.contains(KEY_LAST_SYNC_SUCCESS)) prefs.getBoolean(KEY_LAST_SYNC_SUCCESS, false) else null,
@@ -173,11 +171,6 @@ class PreferencesManager(context: Context) {
         _settings.value = _settings.value.copy(timezoneId = tz)
     }
 
-    fun updateDemoMode(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_DEMO_MODE, enabled).apply()
-        _settings.value = _settings.value.copy(demoModeEnabled = enabled)
-    }
-
     fun connectGoogleAccount(email: String, displayName: String = "") {
         prefs.edit()
             .putBoolean(KEY_GOOGLE_CONNECTED, true)
@@ -213,17 +206,6 @@ class PreferencesManager(context: Context) {
     fun updateSelectedLanguage(language: String) {
         prefs.edit().putString(KEY_SELECTED_LANGUAGE, language).apply()
         _settings.value = _settings.value.copy(selectedLanguage = language)
-    }
-
-    fun completeOnboardingAsDemo() {
-        prefs.edit()
-            .putBoolean(KEY_DEMO_MODE, true)
-            .putBoolean(KEY_HAS_COMPLETED_ONBOARDING, true)
-            .apply()
-        _settings.value = _settings.value.copy(
-            demoModeEnabled = true,
-            hasCompletedOnboarding = true
-        )
     }
 
     fun recordSyncOutcome(timestamp: Long, status: String, isSuccess: Boolean) {
@@ -267,7 +249,6 @@ class PreferencesManager(context: Context) {
         private const val KEY_SYNC_INTERVAL = "key_sync_interval"
         private const val KEY_AUTO_SYNC = "key_auto_sync"
         private const val KEY_TIMEZONE = "key_timezone"
-        private const val KEY_DEMO_MODE = "key_demo_mode"
         private const val KEY_LAST_SYNC_TIME = "key_last_sync_time"
         private const val KEY_LAST_SYNC_STATUS = "key_last_sync_status"
         private const val KEY_LAST_SYNC_SUCCESS = "key_last_sync_success"

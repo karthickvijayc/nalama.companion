@@ -237,7 +237,6 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
             val hasPerms = healthManager.hasAllPermissions()
 
             val record: DailyRecord? = when {
-                settings.demoModeEnabled -> healthManager.generateSampleRecord(today, "Demo Mode")
                 isAvailable && hasPerms -> healthManager.readDailyRecord(today, zoneId)
                 else -> null
             }
@@ -261,26 +260,16 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
             val zoneId = try { ZoneId.of(settings.timezoneId) } catch (_: Exception) { ZoneId.systemDefault() }
             val fetchResult = hevyManager.fetchWorkouts(
                 apiKey = settings.hevyApiKey,
-                isDemoMode = settings.demoModeEnabled,
                 zoneId = zoneId
             )
 
             val payload = fetchResult.getOrElse {
-                if (settings.demoModeEnabled || settings.hevyApiKey.isBlank()) {
-                    WorkoutsExportPayload(
-                        exportVersion = "1.0",
-                        sourceApp = "Hevy",
-                        syncedAt = ZonedDateTime.now().format(DateTimeFormatter.ISO_INSTANT),
-                        workouts = hevyManager.getSampleWorkouts()
-                    )
-                } else {
-                    WorkoutsExportPayload(
-                        exportVersion = "1.0",
-                        sourceApp = "Hevy",
-                        syncedAt = ZonedDateTime.now().format(DateTimeFormatter.ISO_INSTANT),
-                        workouts = emptyList()
-                    )
-                }
+                WorkoutsExportPayload(
+                    exportVersion = "1.0",
+                    sourceApp = "Hevy",
+                    syncedAt = ZonedDateTime.now().format(DateTimeFormatter.ISO_INSTANT),
+                    workouts = emptyList()
+                )
             }
             val workouts = payload.workouts
 
@@ -326,8 +315,8 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
 
             AppLogger.i("UI", "Unified manual export triggered. HC: $isHc, Hevy: $isHevy")
 
-            val activeToken = if (settings.demoModeEnabled) null else resolveOrFetchDriveAccessToken()
-            if (!settings.demoModeEnabled && activeToken.isNullOrBlank()) {
+            val activeToken = resolveOrFetchDriveAccessToken()
+            if (activeToken.isNullOrBlank()) {
                 val errorMsg = "Google Drive authorization required. Please tap 'Authorize Drive' to link your Google account."
                 AppLogger.w("DRIVE", errorMsg)
                 val errorResult = SyncResult(
@@ -352,16 +341,12 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                 val isAvailable = healthManager.checkAvailability() == HealthConnectAvailability.AVAILABLE
                 val hasPerms = healthManager.hasAllPermissions()
 
-                if (!settings.demoModeEnabled && (!isAvailable || !hasPerms)) {
+                if (!isAvailable || !hasPerms) {
                     val msg = if (!isAvailable) "Health Connect not available" else "Health Connect permissions needed"
                     errorSummaries.add(msg)
                 } else {
                     val today = now.toLocalDate()
-                    val record: DailyRecord = if (settings.demoModeEnabled) {
-                        healthManager.generateSampleRecord(today, "Demo Mode")
-                    } else {
-                        healthManager.readDailyRecord(today, zoneId)
-                    }
+                    val record = healthManager.readDailyRecord(today, zoneId)
                     latestTodayRecord = record
 
                     val hcFolder = TargetFolder.HEALTH_DATA
@@ -381,7 +366,6 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                         fileName = hcFolder.defaultFileName,
                         writeMode = settings.writeMode,
                         archiveMaxDays = settings.archiveMaxDays,
-                        isDemoMode = settings.demoModeEnabled,
                         userEmail = settings.connectedEmail.ifBlank { null }
                     )
 
@@ -425,22 +409,14 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
             if (isHevy) {
                 val fetchResult = hevyManager.fetchWorkouts(
                     apiKey = settings.hevyApiKey,
-                    isDemoMode = settings.demoModeEnabled,
                     zoneId = zoneId
                 )
 
-                if (fetchResult.isFailure && !settings.demoModeEnabled) {
+                if (fetchResult.isFailure) {
                     val errorMsg = fetchResult.exceptionOrNull()?.message ?: "Failed to fetch Hevy workouts"
                     errorSummaries.add("Hevy: $errorMsg")
                 } else {
-                    val payload = fetchResult.getOrElse {
-                        WorkoutsExportPayload(
-                            exportVersion = "1.0",
-                            sourceApp = "Hevy",
-                            syncedAt = now.format(DateTimeFormatter.ISO_INSTANT),
-                            workouts = hevyManager.getSampleWorkouts()
-                        )
-                    }
+                    val payload = fetchResult.getOrThrow()
                     val enrichedWorkouts = hevyManager.enrichWithHealthConnect(
                         workouts = payload.workouts,
                         healthManager = healthManager,
@@ -461,7 +437,6 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                         fileName = hevyFolder.defaultFileName,
                         writeMode = settings.writeMode,
                         archiveMaxDays = settings.archiveMaxDays,
-                        isDemoMode = settings.demoModeEnabled,
                         userEmail = settings.connectedEmail.ifBlank { null }
                     )
 
@@ -621,7 +596,6 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
             connectedEmail = settings.connectedEmail,
             targetFolder = settings.customFolderPath.ifBlank { settings.targetFolder.folderPath },
             hasToken = settings.googleOAuthAccessToken.isNotBlank(),
-            isDemoMode = settings.demoModeEnabled,
             cacheSummary = driveClient.cacheManager.getCacheSummary(),
             oauthClientInfo = oauthInfo
         )
@@ -725,11 +699,6 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
         refreshActiveData()
     }
 
-    fun toggleDemoMode(enabled: Boolean) {
-        prefs.updateDemoMode(enabled)
-        refreshActiveData()
-    }
-
     fun clearHistory() {
         historyStore.clearHistory()
     }
@@ -753,7 +722,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                 }
             }
         }
-        if (settings.hasCompletedOnboarding || settings.isGoogleConnected || settings.demoModeEnabled) {
+        if (settings.hasCompletedOnboarding || settings.isGoogleConnected) {
             _uiState.update { it.copy(currentScreen = AppScreen.MAIN) }
         } else {
             _uiState.update { it.copy(currentScreen = AppScreen.LANDING) }
@@ -780,11 +749,6 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                 AppLogger.e("AUTH", "Failed to retrieve initial Drive token: ${e.message}")
             }
         }
-    }
-
-    fun enterDemoModeFromLanding() {
-        prefs.completeOnboardingAsDemo()
-        _uiState.update { it.copy(currentScreen = AppScreen.MAIN) }
     }
 
     fun disconnectGoogleAccount() {
@@ -825,8 +789,8 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
 
             AppLogger.i("BULK", "Unified bulk export initiated. HC: $isHc, Hevy: $isHevy, years: $effectiveYears, days: $effectiveDays")
 
-            val activeToken = if (settings.demoModeEnabled) null else resolveOrFetchDriveAccessToken()
-            if (!settings.demoModeEnabled && activeToken.isNullOrBlank()) {
+            val activeToken = resolveOrFetchDriveAccessToken()
+            if (activeToken.isNullOrBlank()) {
                 val errorMsg = "Google Drive authorization required. Please tap 'Authorize Google Drive' to link your Google account."
                 AppLogger.w("BULK", errorMsg)
                 _uiState.update {
@@ -867,7 +831,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                 val isAvailable = healthManager.checkAvailability() == HealthConnectAvailability.AVAILABLE
                 val hasPerms = healthManager.hasAllPermissions()
 
-                if (!settings.demoModeEnabled && (!isAvailable || !hasPerms)) {
+                if (!isAvailable || !hasPerms) {
                     val msg = if (!isAvailable) "Health Connect not available" else "Health Connect permissions missing"
                     errorSummaries.add(msg)
                 } else {
@@ -891,8 +855,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     val records = healthManager.readHistoricalRecords(
                         startDate = startDate,
                         endDate = today,
-                        zoneId = zoneId,
-                        isDemoMode = settings.demoModeEnabled
+                        zoneId = zoneId
                     ) { current, total, date ->
                         val readProgress = baseProgress + ((current.toFloat() / total.toFloat()) * 0.5f * taskWeight)
                         _uiState.update {
@@ -940,7 +903,6 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                             fileName = hcFolder.defaultFileName,
                             writeMode = WriteMode.APPEND,
                             archiveMaxDays = settings.archiveMaxDays,
-                            isDemoMode = settings.demoModeEnabled,
                             userEmail = settings.connectedEmail.ifBlank { null }
                         )
                         lastDirectResult = direct
@@ -1010,7 +972,6 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
 
                 val hevyResult = hevyManager.fetchAllWorkoutsPaginated(
                     apiKey = settings.hevyApiKey,
-                    isDemoMode = settings.demoModeEnabled,
                     pageSize = 10,
                     zoneId = zoneId
                 ) { page, totalPages, workoutsCount ->
@@ -1027,7 +988,7 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     }
                 }
 
-                if (hevyResult.isFailure && !settings.demoModeEnabled) {
+                if (hevyResult.isFailure) {
                     val errMsg = hevyResult.exceptionOrNull()?.message ?: "Failed to fetch workouts from Hevy API."
                     errorSummaries.add("Hevy: $errMsg")
                 } else {
@@ -1064,7 +1025,6 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                         fileName = hevyFolder.defaultFileName,
                         writeMode = WriteMode.APPEND,
                         archiveMaxDays = settings.archiveMaxDays,
-                        isDemoMode = settings.demoModeEnabled,
                         userEmail = settings.connectedEmail.ifBlank { null }
                     )
 

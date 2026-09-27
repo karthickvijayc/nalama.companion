@@ -23,7 +23,6 @@ import com.example.model.WorkoutsExportPayload
 fun HevyWorkoutsCard(
     payload: WorkoutsExportPayload?,
     isApiKeyConfigured: Boolean,
-    isDemoMode: Boolean = false,
     onOpenSettings: () -> Unit,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
@@ -84,7 +83,7 @@ fun HevyWorkoutsCard(
                 }
             }
 
-            if (!isDemoMode && !isApiKeyConfigured) {
+            if (!isApiKeyConfigured) {
                 // Setup not complete: Hevy API key missing
                 val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                 Surface(

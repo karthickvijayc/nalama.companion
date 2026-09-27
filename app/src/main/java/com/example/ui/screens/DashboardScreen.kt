@@ -45,7 +45,7 @@ fun DashboardScreen(
 ) {
     val scrollState = rememberScrollState()
     val hasDriveToken = uiState.settings.googleOAuthAccessToken.isNotBlank()
-    val isDriveGood = uiState.settings.demoModeEnabled || hasDriveToken
+    val isDriveGood = hasDriveToken
 
     val isHc = uiState.settings.isHealthConnectEnabled
     val isHevy = uiState.settings.isHevyEnabled
@@ -72,15 +72,15 @@ fun DashboardScreen(
                 else -> "Sources"
             }
             val sourceStatusVal = when {
-                isHc && isHevy -> if ((isHcOk || uiState.settings.demoModeEnabled) && (isHevyOk || uiState.settings.demoModeEnabled)) "2 Active" else "Setup Needed"
-                isHc -> if (uiState.settings.demoModeEnabled) "Demo Mode" else if (isHcOk) "Connected" else "Needs Access"
-                isHevy -> if (uiState.settings.demoModeEnabled) "Demo Mode" else if (isHevyOk) "Ready" else "Key Needed"
+                isHc && isHevy -> if (isHcOk && isHevyOk) "2 Active" else "Setup Needed"
+                isHc -> if (isHcOk) "Connected" else "Needs Access"
+                isHevy -> if (isHevyOk) "Ready" else "Key Needed"
                 else -> "None Enabled"
             }
             val isSourceGood = when {
-                isHc && isHevy -> (isHcOk || uiState.settings.demoModeEnabled) && (isHevyOk || uiState.settings.demoModeEnabled)
-                isHc -> isHcOk || uiState.settings.demoModeEnabled
-                isHevy -> isHevyOk || uiState.settings.demoModeEnabled
+                isHc && isHevy -> isHcOk && isHevyOk
+                isHc -> isHcOk
+                isHevy -> isHevyOk
                 else -> false
             }
 
@@ -97,7 +97,7 @@ fun DashboardScreen(
             StatusBadge(
                 modifier = Modifier.weight(1f),
                 label = "Google Drive",
-                status = if (uiState.settings.demoModeEnabled) "Demo Mode" else if (hasDriveToken) "Connected" else if (uiState.settings.isGoogleConnected) "Auth Needed" else "Not Linked",
+                status = if (hasDriveToken) "Connected" else if (uiState.settings.isGoogleConnected) "Auth Needed" else "Not Linked",
                 icon = if (isDriveGood) Icons.Default.CloudDone else Icons.Default.CloudOff,
                 isGood = isDriveGood,
                 onClick = {
@@ -117,7 +117,7 @@ fun DashboardScreen(
         }
 
         // Google Drive Authorization Banner if connected account lacks token
-        if (!uiState.settings.demoModeEnabled && !hasDriveToken) {
+        if (!hasDriveToken) {
             Surface(
                 color = Color(0xFFFEF7E0),
                 shape = RoundedCornerShape(12.dp),
@@ -169,7 +169,7 @@ fun DashboardScreen(
         }
 
         // Health Permissions notice if needed (only when Health Connect is enabled)
-        if (isHc && !uiState.hasPermissions && !uiState.settings.demoModeEnabled) {
+        if (isHc && !uiState.hasPermissions) {
             Surface(
                 color = MaterialTheme.colorScheme.tertiaryContainer,
                 shape = RoundedCornerShape(12.dp),
@@ -216,7 +216,6 @@ fun DashboardScreen(
                 record = uiState.todayRecord,
                 hasPermissions = uiState.hasPermissions,
                 isHealthAvailable = uiState.healthAvailability == HealthConnectAvailability.AVAILABLE,
-                isDemoMode = uiState.settings.demoModeEnabled,
                 onRequestPermissions = onRequestHealthPermissions,
                 onRefresh = onRefreshHealthData
             )
@@ -226,7 +225,6 @@ fun DashboardScreen(
             HevyWorkoutsCard(
                 payload = uiState.workoutsPayload,
                 isApiKeyConfigured = uiState.settings.hevyApiKey.isNotBlank(),
-                isDemoMode = uiState.settings.demoModeEnabled,
                 onOpenSettings = onOpenScheduleSettings,
                 onRefresh = onRefreshHealthData
             )

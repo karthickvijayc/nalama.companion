@@ -208,11 +208,7 @@ class MainActivity : ComponentActivity() {
                                 viewModel.connectGoogleAccount(email, name)
                                 Toast.makeText(this@MainActivity, "Connected Google Account: $email", Toast.LENGTH_SHORT).show()
                             },
-                            onSelectLanguage = { viewModel.updateSelectedLanguage(it) },
-                            onTryOfflineDemo = {
-                                viewModel.enterDemoModeFromLanding()
-                                Toast.makeText(this@MainActivity, "Entered Offline Demo Mode", Toast.LENGTH_SHORT).show()
-                            }
+                            onSelectLanguage = { viewModel.updateSelectedLanguage(it) }
                         )
                     }
 
@@ -349,7 +345,6 @@ class MainActivity : ComponentActivity() {
                                     onUpdateAutoSync = { viewModel.updateAutoSync(it) },
                                     onUpdateCustomFolderPath = { viewModel.updateCustomFolderPath(it) },
                                     onUpdateTimezone = { viewModel.updateTimezone(it) },
-                                    onToggleDemoMode = { viewModel.toggleDemoMode(it) },
                                     onRequestHealthPermissions = requestPermissions,
                                     onRequestGoogleSignIn = { launchGoogleSignIn() },
                                     onAuthorizeDrive = { viewModel.refreshGoogleDriveToken() },

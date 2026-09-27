@@ -75,7 +75,6 @@ class GoogleDriveDirectClient(private val context: Context) {
         fileName: String,
         writeMode: WriteMode,
         archiveMaxDays: Int = 180,
-        isDemoMode: Boolean = false,
         userEmail: String? = null
     ): DirectDriveResult = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
@@ -241,28 +240,15 @@ class GoogleDriveDirectClient(private val context: Context) {
 
                 val duration = System.currentTimeMillis() - startTime
 
-                if (isDemoMode) {
-                    AppLogger.i("DEMO", "Demo mode: Saved ${mergeResult.totalActiveRecords} records to local cache.")
-                    DirectDriveResult(
-                        isSuccess = true,
-                        httpCode = 200,
-                        message = "Demo Mode: Saved ${mergeResult.totalActiveRecords} record(s) locally on device.",
-                        durationMs = duration,
-                        bytesTransferred = bytesPayload,
-                        activeRecordsCount = mergeResult.totalActiveRecords,
-                        targetFolderUrl = null,
-                        isLocalOnlyFallback = true
-                    )
-                } else {
-                    AppLogger.w("DRIVE", "Google Drive export skipped: No Google Drive authorization token found. Saved locally only.")
-                    DirectDriveResult(
-                        isSuccess = false,
-                        httpCode = 401,
-                        message = "Google Drive authorization required. Please tap 'Authorize Google Drive' to upload CSV files.",
-                        durationMs = duration,
-                        bytesTransferred = bytesPayload,
-                        activeRecordsCount = mergeResult.totalActiveRecords,
-                        targetFolderUrl = null,
+                AppLogger.w("DRIVE", "Google Drive export skipped: No Google Drive authorization token found. Saved locally only.")
+                DirectDriveResult(
+                    isSuccess = false,
+                    httpCode = 401,
+                    message = "Google Drive authorization required. Please tap 'Authorize Google Drive' to upload CSV files.",
+                    durationMs = duration,
+                    bytesTransferred = bytesPayload,
+                    activeRecordsCount = mergeResult.totalActiveRecords,
+                    targetFolderUrl = null,
                         isLocalOnlyFallback = true
                     )
                 }
@@ -290,7 +276,6 @@ class GoogleDriveDirectClient(private val context: Context) {
         fileName: String,
         writeMode: WriteMode,
         archiveMaxDays: Int = 180,
-        isDemoMode: Boolean = false,
         userEmail: String? = null
     ): DirectDriveResult = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
@@ -454,26 +439,13 @@ class GoogleDriveDirectClient(private val context: Context) {
 
                 val duration = System.currentTimeMillis() - startTime
 
-                if (isDemoMode) {
-                    AppLogger.i("DEMO", "Demo mode: Saved ${mergeResult.totalActiveRecords} workouts to local cache.")
-                    DirectDriveResult(
-                        isSuccess = true,
-                        httpCode = 200,
-                        message = "Demo Mode: Saved ${mergeResult.totalActiveRecords} workout(s) locally on device.",
-                        durationMs = duration,
-                        bytesTransferred = bytesPayload,
-                        activeRecordsCount = mergeResult.totalActiveRecords,
-                        targetFolderUrl = null,
-                        isLocalOnlyFallback = true
-                    )
-                } else {
-                    AppLogger.w("DRIVE", "Workout export skipped: No Google Drive authorization token found. Saved locally only.")
-                    DirectDriveResult(
-                        isSuccess = false,
-                        httpCode = 401,
-                        message = "Google Drive authorization required. Please tap 'Authorize Google Drive' to upload CSV files.",
-                        durationMs = duration,
-                        bytesTransferred = bytesPayload,
+                AppLogger.w("DRIVE", "Workout export skipped: No Google Drive authorization token found. Saved locally only.")
+                DirectDriveResult(
+                    isSuccess = false,
+                    httpCode = 401,
+                    message = "Google Drive authorization required. Please tap 'Authorize Google Drive' to upload CSV files.",
+                    durationMs = duration,
+                    bytesTransferred = bytesPayload,
                         activeRecordsCount = mergeResult.totalActiveRecords,
                         targetFolderUrl = null,
                         isLocalOnlyFallback = true

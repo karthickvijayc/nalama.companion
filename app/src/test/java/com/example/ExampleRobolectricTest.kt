@@ -50,12 +50,13 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun `preferences manager handles demo mode onboarding`() {
+    fun `preferences manager handles onboarding completion on google connection`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val prefs = PreferencesManager(context)
 
-        prefs.completeOnboardingAsDemo()
-        assertTrue(prefs.settings.value.demoModeEnabled)
+        prefs.connectGoogleAccount("user@example.com", "Test User")
+        assertTrue(prefs.settings.value.isGoogleConnected)
         assertTrue(prefs.settings.value.hasCompletedOnboarding)
+        assertEquals("user@example.com", prefs.settings.value.connectedEmail)
     }
 }
