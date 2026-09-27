@@ -32,7 +32,8 @@ data class AppSettings(
     val hasCompletedOnboarding: Boolean = false,
     val hasCompletedInitialBulkExport: Boolean = false,
     val archiveMaxDays: Int = 180,                      // Active file retains max 180 days, older moved to [file]_YYYY
-    val googleOAuthAccessToken: String = ""
+    val googleOAuthAccessToken: String = "",
+    val bulkHistoryYears: Int = 1                       // User configurable: 1y, 2y, 3y, 4y, 5y
 )
 
 class PreferencesManager(context: Context) {
@@ -80,7 +81,8 @@ class PreferencesManager(context: Context) {
             hasCompletedOnboarding = prefs.getBoolean(KEY_HAS_COMPLETED_ONBOARDING, false),
             hasCompletedInitialBulkExport = prefs.getBoolean(KEY_HAS_COMPLETED_INITIAL_BULK_EXPORT, false),
             archiveMaxDays = prefs.getInt(KEY_ARCHIVE_MAX_DAYS, 180),
-            googleOAuthAccessToken = prefs.getString(KEY_GOOGLE_OAUTH_ACCESS_TOKEN, "") ?: ""
+            googleOAuthAccessToken = prefs.getString(KEY_GOOGLE_OAUTH_ACCESS_TOKEN, "") ?: "",
+            bulkHistoryYears = prefs.getInt(KEY_BULK_HISTORY_YEARS, 1).coerceIn(1, 5)
         )
     }
 
@@ -248,6 +250,12 @@ class PreferencesManager(context: Context) {
         _settings.value = _settings.value.copy(archiveMaxDays = safeDays)
     }
 
+    fun updateBulkHistoryYears(years: Int) {
+        val safeYears = years.coerceIn(1, 5)
+        prefs.edit().putInt(KEY_BULK_HISTORY_YEARS, safeYears).apply()
+        _settings.value = _settings.value.copy(bulkHistoryYears = safeYears)
+    }
+
     companion object {
         private const val KEY_HEALTH_CONNECT_ENABLED = "key_health_connect_enabled"
         private const val KEY_HEVY_ENABLED = "key_hevy_enabled"
@@ -271,5 +279,6 @@ class PreferencesManager(context: Context) {
         private const val KEY_HAS_COMPLETED_INITIAL_BULK_EXPORT = "key_has_completed_initial_bulk_export"
         private const val KEY_ARCHIVE_MAX_DAYS = "key_archive_max_days"
         private const val KEY_GOOGLE_OAUTH_ACCESS_TOKEN = "key_google_oauth_access_token"
+        private const val KEY_BULK_HISTORY_YEARS = "key_bulk_history_years"
     }
 }

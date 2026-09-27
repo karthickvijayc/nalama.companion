@@ -59,6 +59,7 @@ fun SettingsScreen(
     onNavigateToLanding: () -> Unit = {},
     onDisconnectGoogle: () -> Unit = {},
     onBulkExport: () -> Unit = {},
+    onUpdateBulkHistoryYears: (Int) -> Unit = {},
     onOpenDiagnostics: () -> Unit = {},
     onClearCache: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -730,6 +731,47 @@ fun SettingsScreen(
                 )
             }
 
+            // History Pull Limit (1y, 2y, 3y, 4y, 5y)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = "History Pull Limit",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf(1, 2, 3, 4, 5).forEach { years ->
+                        val isSelected = uiState.settings.bulkHistoryYears == years
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onUpdateBulkHistoryYears(years) },
+                            label = {
+                                Text(
+                                    text = "${years}y",
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 12.sp
+                                )
+                            },
+                            leadingIcon = if (isSelected) {
+                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                            } else null,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("history_pull_limit_${years}y")
+                        )
+                    }
+                }
+                Text(
+                    text = "Sync Full History will pull ${uiState.settings.bulkHistoryYears} year(s) of Health Connect daily biometrics (${uiState.settings.bulkHistoryYears * 365} days).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    fontSize = 11.sp
+                )
+            }
+
             // Action Buttons: Sync Now & Bulk Export
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
@@ -785,7 +827,7 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Sync Full History to Drive",
+                        text = "Sync Full History (${uiState.settings.bulkHistoryYears}y) to Drive",
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 13.sp
                     )

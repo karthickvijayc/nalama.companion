@@ -796,7 +796,11 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
         prefs.updateSelectedLanguage(language)
     }
 
-    fun startBulkExport(historyDays: Int = 180) {
+    fun updateBulkHistoryYears(years: Int) {
+        prefs.updateBulkHistoryYears(years)
+    }
+
+    fun startBulkExport(historyDays: Int? = null) {
         viewModelScope.launch {
             val settings = prefs.settings.value
             val isHc = settings.isHealthConnectEnabled
@@ -816,8 +820,10 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
 
             val zoneId = try { ZoneId.of(settings.timezoneId) } catch (_: Exception) { ZoneId.systemDefault() }
             val now = ZonedDateTime.now(zoneId)
+            val effectiveYears = settings.bulkHistoryYears.coerceIn(1, 5)
+            val effectiveDays = historyDays ?: (effectiveYears * 365)
 
-            AppLogger.i("BULK", "Unified bulk export initiated. HC: $isHc, Hevy: $isHevy, historyDays: $historyDays")
+            AppLogger.i("BULK", "Unified bulk export initiated. HC: $isHc, Hevy: $isHevy, years: $effectiveYears, days: $effectiveDays")
 
             val activeToken = if (settings.demoModeEnabled) null else resolveOrFetchDriveAccessToken()
             if (!settings.demoModeEnabled && activeToken.isNullOrBlank()) {
@@ -866,12 +872,17 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     errorSummaries.add(msg)
                 } else {
                     val today = now.toLocalDate()
-                    val startDate = today.minusDays(historyDays.toLong())
+                    val startDate = if (historyDays != null) {
+                        today.minusDays(historyDays.toLong())
+                    } else {
+                        today.minusYears(effectiveYears.toLong())
+                    }
+                    val daysCount = java.time.temporal.ChronoUnit.DAYS.between(startDate, today).toInt() + 1
 
                     _uiState.update {
                         it.copy(
                             bulkExportState = it.bulkExportState.copy(
-                                statusMessage = "Reading $historyDays days of Health Connect records...",
+                                statusMessage = "Reading $effectiveYears year(s) ($daysCount days) of Health Connect records...",
                                 phase = "READING (Health Connect)"
                             )
                         )

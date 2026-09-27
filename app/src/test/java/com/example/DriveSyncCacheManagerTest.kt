@@ -526,4 +526,26 @@ workout_id,date,title,start_time,end_time,duration_minutes,total_volume_kg,total
         assertTrue(result.activeCsv.contains(",486,"))
         assertTrue(result.activeCsv.contains("Great session"))
     }
+
+    @Test
+    fun testBulkHistoryYearsConfiguration() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val prefs = com.example.data.PreferencesManager(context)
+
+        // Default should be 1 year
+        assertEquals(1, prefs.settings.value.bulkHistoryYears)
+
+        // Test updating to 1y, 2y, 3y, 4y, 5y
+        for (years in 1..5) {
+            prefs.updateBulkHistoryYears(years)
+            assertEquals(years, prefs.settings.value.bulkHistoryYears)
+        }
+
+        // Test coercion boundary limits
+        prefs.updateBulkHistoryYears(0)
+        assertEquals(1, prefs.settings.value.bulkHistoryYears)
+
+        prefs.updateBulkHistoryYears(10)
+        assertEquals(5, prefs.settings.value.bulkHistoryYears)
+    }
 }
