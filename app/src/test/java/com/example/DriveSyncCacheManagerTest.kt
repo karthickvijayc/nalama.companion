@@ -548,4 +548,20 @@ workout_id,date,title,start_time,end_time,duration_minutes,total_volume_kg,total
         prefs.updateBulkHistoryYears(10)
         assertEquals(5, prefs.settings.value.bulkHistoryYears)
     }
+
+    @Test
+    fun testVolumeAndSetsReconciliationFromReconstructedSets() {
+        val header = "workout_id,date,title,start_time,end_time,duration_minutes,total_volume_kg,total_sets,avg_hr_bpm,max_hr_bpm,calories,exercise_name,target_muscle_group,equipment,set_number,set_type,weight_kg,reps,rpe,notes"
+        val row1 = "w-vol-test,2026-09-25,Test Workout,07:00,08:00,60,5120,14,120,150,400,Bench Press,Chest,Barbell,1,normal,50.0,10,,"
+        val row2 = "w-vol-test,2026-09-25,Test Workout,07:00,08:00,60,5120,14,120,150,400,Bench Press,Chest,Barbell,2,normal,60.0,10,,"
+        val existingCsv = "$header\n$row1\n$row2\n"
+
+        val result = cacheManager.mergeWorkoutsCsv(
+            existingCsv = existingCsv,
+            incomingWorkouts = emptyList(),
+            archiveMaxDays = 0
+        )
+
+        assertTrue(result.activeCsv.contains("w-vol-test,2026-09-25,Test Workout,07:00,08:00,60,1100,2,"))
+    }
 }

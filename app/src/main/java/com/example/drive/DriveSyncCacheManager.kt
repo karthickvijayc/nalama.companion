@@ -466,7 +466,19 @@ class DriveSyncCacheManager(private val context: Context) {
                             notes = exNote
                         )
                     }
-                    workoutMap[key] = workout.copy(exercises = exerciseList)
+                    val allSets = exerciseList.flatMap { it.sets }
+                    val reconciledVol = if (allSets.isNotEmpty()) {
+                        allSets.sumOf { it.weightKg * it.reps }.roundToInt()
+                    } else workout.totalVolumeKg
+                    val reconciledSets = if (allSets.isNotEmpty()) {
+                        allSets.size
+                    } else workout.totalSets
+
+                    workoutMap[key] = workout.copy(
+                        exercises = exerciseList,
+                        totalVolumeKg = reconciledVol,
+                        totalSets = reconciledSets
+                    )
                 }
             }
         }
