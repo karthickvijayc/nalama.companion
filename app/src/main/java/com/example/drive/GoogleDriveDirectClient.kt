@@ -249,9 +249,8 @@ class GoogleDriveDirectClient(private val context: Context) {
                     bytesTransferred = bytesPayload,
                     activeRecordsCount = mergeResult.totalActiveRecords,
                     targetFolderUrl = null,
-                        isLocalOnlyFallback = true
-                    )
-                }
+                    isLocalOnlyFallback = true
+                )
             }
         } catch (e: Exception) {
             val duration = System.currentTimeMillis() - startTime
@@ -446,11 +445,10 @@ class GoogleDriveDirectClient(private val context: Context) {
                     message = "Google Drive authorization required. Please tap 'Authorize Google Drive' to upload CSV files.",
                     durationMs = duration,
                     bytesTransferred = bytesPayload,
-                        activeRecordsCount = mergeResult.totalActiveRecords,
-                        targetFolderUrl = null,
-                        isLocalOnlyFallback = true
-                    )
-                }
+                    activeRecordsCount = mergeResult.totalActiveRecords,
+                    targetFolderUrl = null,
+                    isLocalOnlyFallback = true
+                )
             }
         } catch (e: Exception) {
             val duration = System.currentTimeMillis() - startTime
