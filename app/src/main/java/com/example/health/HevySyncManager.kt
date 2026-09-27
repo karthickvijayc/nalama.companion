@@ -220,14 +220,23 @@ class HevySyncManager {
                     weightKg = userWeightKg
                 )
                 val effectiveAvgHr = workout.avgHeartRateBpm ?: biometrics.avgHeartRateBpm
+                val effectiveDuration = workout.durationMinutes
                 val estimated = healthManager.calculateEstimatedBiometrics(
-                    durationMinutes = workout.durationMinutes,
+                    durationMinutes = effectiveDuration,
                     weightKg = userWeightKg,
                     avgHr = effectiveAvgHr
                 )
-                val resolvedCalories = biometrics.calories
-                    ?: workout.caloriesActualHr
-                    ?: estimated.calories
+                val minRealisticCalories = if (effectiveDuration >= 15) {
+                    (effectiveDuration * 2.5).roundToInt()
+                } else {
+                    (effectiveDuration * 2.0).roundToInt().coerceAtLeast(15)
+                }
+
+                val resolvedCalories = when {
+                    biometrics.calories != null && biometrics.calories >= minRealisticCalories -> biometrics.calories
+                    workout.caloriesActualHr != null && workout.caloriesActualHr >= minRealisticCalories -> workout.caloriesActualHr
+                    else -> estimated.calories
+                }
 
                 workout.copy(
                     avgHeartRateBpm = effectiveAvgHr,
@@ -448,7 +457,8 @@ class HevySyncManager {
                         val endZoned = endInstant.atZone(zoneId)
                         endTimeFormatted = endZoned.format(DateTimeFormatter.ofPattern("HH:mm"))
 
-                        val diffMin = Duration.between(startInstant, endInstant).toMinutes().toInt()
+                        val diffMillis = Duration.between(startInstant, endInstant).toMillis()
+                        val diffMin = Math.round(diffMillis / 60000.0).toInt()
                         if (diffMin > 0) {
                             calculatedDurationMinutes = diffMin
                         }
@@ -542,11 +552,15 @@ class HevySyncManager {
             }
             val workoutNotes = rawWkNotes?.let { WorkoutCsvConverter.sanitizeField(it) }?.ifBlank { null }
 
+            val secondsDurationMin = if (wObj.has("duration_seconds") && wObj.optInt("duration_seconds") > 0) {
+                Math.round(wObj.optInt("duration_seconds") / 60.0).toInt().coerceAtLeast(1)
+            } else null
+
             val durationMin = when {
-                wObj.has("duration_seconds") && wObj.optInt("duration_seconds") > 0 ->
-                    (wObj.optInt("duration_seconds") / 60).coerceAtLeast(1)
-                calculatedDurationMinutes != null && calculatedDurationMinutes > 0 ->
+                calculatedDurationMinutes != null && calculatedDurationMinutes > 0 -> {
                     calculatedDurationMinutes
+                }
+                secondsDurationMin != null -> secondsDurationMin
                 else -> 55
             }
             val initialCalories = if (wObj.has("calories") && !wObj.isNull("calories") && wObj.optInt("calories") > 0) {

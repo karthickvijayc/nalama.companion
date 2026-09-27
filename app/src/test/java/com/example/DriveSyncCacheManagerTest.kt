@@ -507,4 +507,23 @@ workout_id,date,title,start_time,end_time,duration_minutes,total_volume_kg,total
         // 90.7 kg * (1 - 0.293) = 64.1 kg lean mass
         assertTrue(result.activeCsv.contains("90.7,29.3,64.1"))
     }
+
+    @Test
+    fun testTruncatedCalorieAutoHealing() {
+        val header = "workout_id,date,title,start_time,end_time,duration_minutes,total_volume_kg,total_sets,avg_hr_bpm,max_hr_bpm,calories,exercise_name,target_muscle_group,equipment,set_number,set_type,weight_kg,reps,rpe,notes"
+        // 81-minute workout with implausibly low 43 kcal (truncated Health Connect log)
+        val row = "eeb72df8-ffe0-4e29-a536-1238d4ff732c,2026-09-24,B&B,07:21,08:42,81,3191,14,126,181,43,Lat Pulldown (Cable),Lats,Machine,1,normal,27.0,12,,Great session"
+        val existingCsv = "$header\n$row\n"
+
+        val result = cacheManager.mergeWorkoutsCsv(
+            existingCsv = existingCsv,
+            incomingWorkouts = emptyList(),
+            archiveMaxDays = 0
+        )
+
+        // The implausible 43 kcal for 81 min should be auto-healed to realistic metabolic burn (81 * 6 = 486 kcal)
+        assertFalse(result.activeCsv.contains(",43,"))
+        assertTrue(result.activeCsv.contains(",486,"))
+        assertTrue(result.activeCsv.contains("Great session"))
+    }
 }

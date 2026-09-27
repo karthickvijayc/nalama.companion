@@ -659,9 +659,19 @@ class HealthConnectManager(private val context: Context) {
             }
         } catch (_: Exception) {}
 
-        // If no calories recorded in Health Connect, provide standard metabolic estimation based on weight & HR
-        if (calories == null || calories <= 0) {
-            val estimated = calculateEstimatedBiometrics(durationMinutes, weightKg, avgHr)
+        val estimated = calculateEstimatedBiometrics(durationMinutes, weightKg, avgHr)
+
+        // Health Connect records can occasionally be incomplete/truncated (e.g. only a 5-minute segment
+        // synced before watch tracking stopped, recording ~40 kcal for an 80+ min intense resistance workout).
+        // Physiological baseline: An active workout burns at least ~2.5 kcal/min for workouts >= 15 min.
+        // If Health Connect calories are absent or below this minimum realistic threshold, fall back to metabolic estimation.
+        val minRealisticCalories = if (durationMinutes >= 15) {
+            (durationMinutes * 2.5).roundToInt()
+        } else {
+            (durationMinutes * 2.0).roundToInt().coerceAtLeast(15)
+        }
+
+        if (calories == null || calories < minRealisticCalories) {
             calories = estimated.calories
         }
 

@@ -388,8 +388,14 @@ class DriveSyncCacheManager(private val context: Context) {
                         if (!workoutMap.containsKey(key)) {
                             val durationMin = cols.getOrNull(5)?.trim()?.toIntOrNull() ?: 0
                             val parsedCalories = cols.getOrNull(10)?.trim()?.toIntOrNull()
-                            val initialCalories = parsedCalories ?: if (durationMin > 0) (durationMin * 6.0).toInt().coerceAtLeast(30) else null
+                            val minRealistic = if (durationMin >= 15) (durationMin * 2.5).toInt() else 15
+                            val validCalories = if (parsedCalories != null && parsedCalories >= minRealistic) {
+                                parsedCalories
+                            } else if (durationMin > 0) {
+                                (durationMin * 6.0).toInt().coerceAtLeast(30)
+                            } else null
 
+                            val rawWkNote = cols.getOrNull(19)?.trim()?.ifBlank { null }
                             workoutMap[key] = WorkoutItem(
                                 workoutId = workoutId,
                                 date = date,
@@ -401,8 +407,8 @@ class DriveSyncCacheManager(private val context: Context) {
                                 totalSets = cols.getOrNull(7)?.trim()?.toIntOrNull() ?: 0,
                                 avgHeartRateBpm = cols.getOrNull(8)?.trim()?.toIntOrNull(),
                                 maxHeartRateBpm = cols.getOrNull(9)?.trim()?.toIntOrNull(),
-                                caloriesActualHr = initialCalories,
-                                notes = null
+                                caloriesActualHr = validCalories,
+                                notes = rawWkNote
                             )
                             workoutExercisesMap[key] = mutableMapOf()
                             workoutExerciseMetaMap[key] = mutableMapOf()
@@ -433,6 +439,11 @@ class DriveSyncCacheManager(private val context: Context) {
                             )
                             workoutExerciseMetaMap[key]?.put(exName, Pair(targetMuscle, equipment))
                             if (notes != null) workoutExerciseNotesMap[key]?.put(exName, notes)
+                        } else {
+                            val notes = cols.getOrNull(19)?.trim()?.ifBlank { null }
+                            if (notes != null && workoutMap[key]?.notes.isNullOrBlank()) {
+                                workoutMap[key] = workoutMap[key]!!.copy(notes = notes)
+                            }
                         }
                     }
                 }
