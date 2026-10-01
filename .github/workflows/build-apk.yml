@@ -58,13 +58,13 @@ jobs:
       - name: Prepare Named Distribution APK
         run: |
           mkdir -p release-artifacts
-          if [ -f app/build/outputs/apk/debug/NalamaCompanionHealthData.APK ]; then
-            cp app/build/outputs/apk/debug/NalamaCompanionHealthData.APK release-artifacts/NalamaCompanionHealthData.APK
-          else
-            APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
-            cp "$APK_FILE" release-artifacts/NalamaCompanionHealthData.APK
+          APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "No APK found!"
+            exit 1
           fi
-          echo "Prepared APK at release-artifacts/NalamaCompanionHealthData.APK"
+          cp "$APK_FILE" release-artifacts/NalamaCompanionHealthData.APK
+          echo "Prepared APK at release-artifacts/NalamaCompanionHealthData.APK from $APK_FILE"
           ls -la release-artifacts/
 
       - name: Upload Named APK Artifact

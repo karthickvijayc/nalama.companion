@@ -183,16 +183,3 @@ tasks.register("copyDistributionApk") {
     }
   }
 }
-
-tasks.matching { it.name.startsWith("assemble") }.configureEach {
-  doLast {
-    val apkDir = layout.buildDirectory.dir("outputs/apk").get().asFile
-    if (apkDir.exists()) {
-      apkDir.walkTopDown().filter { it.extension.equals("apk", ignoreCase = true) && it.name != "NalamaCompanionHealthData.APK" }.forEach { apkFile ->
-        val dest = File(apkFile.parentFile, "NalamaCompanionHealthData.APK")
-        apkFile.copyTo(dest, overwrite = true)
-        println("Generated APK copied to: ${dest.absolutePath}")
-      }
-    }
-  }
-}
