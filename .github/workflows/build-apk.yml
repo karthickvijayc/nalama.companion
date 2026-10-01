@@ -3,6 +3,9 @@ name: Build and Attach Android APK
 on:
   push:
     branches: [ main, master ]
+    tags:
+      - 'v*'
+      - 'V*'
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
@@ -15,6 +18,8 @@ jobs:
   build:
     name: Build APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout Repository
@@ -50,9 +55,32 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: Upload Debug APK Artifact
+      - name: Prepare Named Distribution APK
+        run: |
+          mkdir -p release-artifacts
+          if [ -f app/build/outputs/apk/debug/NalamaCompanionHealthData.APK ]; then
+            cp app/build/outputs/apk/debug/NalamaCompanionHealthData.APK release-artifacts/NalamaCompanionHealthData.APK
+          else
+            APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+            cp "$APK_FILE" release-artifacts/NalamaCompanionHealthData.APK
+          fi
+          echo "Prepared APK at release-artifacts/NalamaCompanionHealthData.APK"
+          ls -la release-artifacts/
+
+      - name: Upload Named APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: NalamaCompanionHealthData
+          path: release-artifacts/NalamaCompanionHealthData.APK
           retention-days: 30
+
+      - name: Create or Update GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/NalamaCompanionHealthData.APK
+          name: Release ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

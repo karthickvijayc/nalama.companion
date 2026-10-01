@@ -30,7 +30,7 @@ import com.example.data.AppSettings
 
 /**
  * Landing Page for Nalama Health Data Companion.
- * Explains the companion app's purpose as a sensor and workout bridge for the parent Nalama platform (nalama.family)
+ * Explains the companion app's purpose as a sensor and workout bridge for the parent Nalama platform (nalama.web.app)
  * and connects Google Drive BYOS storage.
  */
 @Composable
@@ -148,7 +148,7 @@ fun LandingScreen(
                         modifier = Modifier.padding(horizontal = 4.dp)
                     ) {
                         Text(
-                            text = "Companion App for Nalama (nalama.family)",
+                            text = "Companion App for Nalama (nalama.web.app)",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -414,7 +414,7 @@ fun LandingScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "This Android app functions strictly as a sensor & workout companion for the parent Nalama platform (nalama.family). It writes clean CSV files directly to your personal Google Drive, with zero intermediary databases.",
+                                text = "This Android app functions strictly as a sensor & workout companion for the parent Nalama platform (nalama.web.app). It writes clean CSV files directly to your personal Google Drive, with zero intermediary databases.",
                                 fontSize = 13.sp,
                                 color = Color(0xFF475569),
                                 lineHeight = 19.sp
@@ -613,7 +613,7 @@ fun LandingScreen(
                             color = Color(0xFF36245A)
                         )
                         Text(
-                            text = "• This companion app functions as an on-device data bridge for the Nalama wellness platform (nalama.family).",
+                            text = "• This companion app functions as an on-device data bridge for the Nalama wellness platform (nalama.web.app).",
                             fontSize = 12.5.sp,
                             color = Color(0xFF475569)
                         )

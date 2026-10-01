@@ -944,34 +944,19 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            OutlinedButton(
+                onClick = {
+                    try {
+                        uriHandler.openUri("https://nalama.web.app/")
+                    } catch (_: Exception) {}
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("open_nalama_family_btn")
             ) {
-                OutlinedButton(
-                    onClick = {
-                        try {
-                            uriHandler.openUri("https://nalama.family")
-                        } catch (_: Exception) {}
-                    },
-                    modifier = Modifier.weight(1f).testTag("open_nalama_family_btn")
-                ) {
-                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("nalama.family", fontSize = 12.sp)
-                }
-                OutlinedButton(
-                    onClick = {
-                        try {
-                            uriHandler.openUri("https://nalama.ai.studio")
-                        } catch (_: Exception) {}
-                    },
-                    modifier = Modifier.weight(1f).testTag("open_nalama_studio_btn")
-                ) {
-                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("nalama.ai.studio", fontSize = 12.sp)
-                }
+                Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Visit Nalama (nalama.web.app)", fontSize = 13.sp)
             }
         }
 

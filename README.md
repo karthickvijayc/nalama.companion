@@ -1,6 +1,6 @@
 # Nalama Companion • நலமா (Android APK)
 
-**Nalama Companion** is an open, privacy-first Android bridge application designed for **[nalama.family](https://nalama.family)** and **[nalama.ai.studio](https://nalama.ai.studio)**. It connects Android's native **Google Health Connect** ecosystem and **Hevy** strength training workouts directly to your personal Google Drive / Google Sheets using a **Zero-Database, Bring-Your-Own-Storage (BYOS)** architecture.
+**Nalama Companion** is an open, privacy-first Android bridge application designed for **[nalama.web.app](https://nalama.web.app/)**. It connects Android's native **Google Health Connect** ecosystem and **Hevy** strength training workouts directly to your personal Google Drive / Google Sheets using a **Zero-Database, Bring-Your-Own-Storage (BYOS)** architecture.
 
 ---
 
@@ -280,52 +280,52 @@ function writeToSheet(sheet, payload, writeMode) {
 
 ---
 
-## 📱 Direct Download Links (For nalama.family & Users)
+## 📱 Direct Download Links (For nalama.web.app & Users)
 
 Since this repository is public, anyone can directly download the pre-signed APK:
 
-### 1. Direct GitHub Raw Link
+### 1. GitHub Releases Link (Recommended - Latest Release)
 ```text
-https://github.com/<YOUR_GITHUB_USER>/<YOUR_REPO>/raw/main/release/nalama-companion.apk
+https://github.com/karthickvijayc/nalama.companion/releases/latest/download/NalamaCompanionHealthData.APK
 ```
-*Tapping this link in Chrome or any Android browser automatically downloads `nalama-companion.apk`.*
+*Tapping this link in Chrome or any Android browser automatically downloads `NalamaCompanionHealthData.APK`.*
 
-### 2. GitHub Releases Link (Recommended for Tagged Versions)
+### 2. Specific Tagged Version (v1.1.0)
 ```text
-https://github.com/<YOUR_GITHUB_USER>/<YOUR_REPO>/releases/latest/download/nalama-companion.apk
+https://github.com/karthickvijayc/nalama.companion/releases/download/v1.1.0/NalamaCompanionHealthData.APK
 ```
 
 ---
 
-## 🔗 Parent App Integration Snippets (`nalama.family` / `nalama.ai.studio`)
+## 🔗 Parent App Integration Snippets (`nalama.web.app`)
 
 To embed a direct download button on the parent web app / PWA:
 
 ### HTML:
 ```html
 <a 
-  href="https://github.com/<YOUR_GITHUB_USER>/<YOUR_REPO>/raw/main/release/nalama-companion.apk" 
-  download="nalama-companion.apk"
+  href="https://github.com/karthickvijayc/nalama.companion/releases/latest/download/NalamaCompanionHealthData.APK" 
+  download="NalamaCompanionHealthData.APK"
   class="nalama-download-btn"
   style="display: inline-flex; align-items: center; gap: 8px; background-color: #166534; color: #ffffff; padding: 12px 24px; border-radius: 9999px; text-decoration: none; font-weight: 600;"
 >
   <span>📱</span>
-  <span>Download Nalama Companion APK (v1.0.0)</span>
+  <span>Download Nalama Companion APK (v1.1.0)</span>
 </a>
 ```
 
 ### React / Next.js / TypeScript:
 ```tsx
 export function DownloadCompanionButton() {
-  const downloadUrl = "https://github.com/<YOUR_GITHUB_USER>/<YOUR_REPO>/raw/main/release/nalama-companion.apk";
+  const downloadUrl = "https://github.com/karthickvijayc/nalama.companion/releases/latest/download/NalamaCompanionHealthData.APK";
   return (
     <a
       href={downloadUrl}
-      download="nalama-companion.apk"
+      download="NalamaCompanionHealthData.APK"
       className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-emerald-800 text-white font-semibold shadow-md hover:bg-emerald-900 transition-colors"
     >
       <span>📱</span>
-      <span>Download Nalama Companion APK</span>
+      <span>Download Nalama Companion APK (v1.1.0)</span>
     </a>
   );
 }
@@ -336,7 +336,7 @@ export function DownloadCompanionButton() {
 ## 📥 Sideloading Instructions
 
 1. **Tap the Download Link** in Chrome or your Android web browser.
-2. If Android displays: *"File might be harmful. Do you want to download nalama-companion.apk anyway?"*, tap **Download anyway**.
+2. If Android displays: *"File might be harmful. Do you want to download NalamaCompanionHealthData.APK anyway?"*, tap **Download anyway**.
 3. Once downloaded, tap **Open** or tap the file in your phone's **Downloads** folder.
 4. If prompted: *"For your security, your phone currently isn't allowed to install unknown apps from this source"*:
    * Tap **Settings**.
@@ -352,15 +352,11 @@ export function DownloadCompanionButton() {
 
 ```bash
 # 1. Build the APK
-gradle assembleDebug
+./gradlew assembleDebug
 
-# 2. Copy the APK into release/nalama-companion.apk
-gradle copyDistributionApk
-
-# 3. Commit and push to GitHub
-git add release/nalama-companion.apk
-git commit -m "Update Nalama Companion APK"
-git push origin main
+# 2. Automatically copies/packages NalamaCompanionHealthData.APK
+# or manually copy distribution:
+./gradlew copyDistributionApk
 ```
 
 ---

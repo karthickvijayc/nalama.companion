@@ -247,7 +247,7 @@ class MainActivity : ComponentActivity() {
                                                     color = MaterialTheme.colorScheme.primary
                                                 )
                                                 Text(
-                                                    text = "Companion for Nalama (nalama.family)",
+                                                    text = "Companion for Nalama (nalama.web.app)",
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                     fontSize = 11.sp

@@ -17,13 +17,14 @@ android {
     applicationId = "com.aistudio.nalama.healthdatacompanion"
     minSdk = 26
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0.0"
+    versionCode = 2
+    versionName = "1.1.0"
 
     buildConfigField("String", "GOOGLE_OAUTH_CLIENT_ID", "\"761288817669-6dqbjl0gt69aetb44uvldl0hne3q2a2l.apps.googleusercontent.com\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
+
 
   signingConfigs {
     create("release") {
@@ -154,27 +155,44 @@ dependencies {
 }
 
 tasks.register("copyDistributionApk") {
-  description = "Copies built APK to release/nalama-companion.apk for direct Git download"
+  description = "Copies built APK to release/NalamaCompanionHealthData.APK for direct Git download"
   val buildDir = layout.buildDirectory
   val rootDirectory = layout.projectDirectory.asFile.parentFile
   doLast {
     val releaseDir = File(rootDirectory, "release")
     releaseDir.mkdirs()
     val buildOutputsApk = File(rootDirectory, ".build-outputs/app-debug.apk")
-    val appDebugApk = File(buildDir.get().asFile, "outputs/apk/debug/app-debug.apk")
+    val customReleaseApk = File(buildDir.get().asFile, "outputs/apk/release/NalamaCompanionHealthData.APK")
+    val customDebugApk = File(buildDir.get().asFile, "outputs/apk/debug/NalamaCompanionHealthData.APK")
     val appReleaseApk = File(buildDir.get().asFile, "outputs/apk/release/app-release.apk")
+    val appDebugApk = File(buildDir.get().asFile, "outputs/apk/debug/app-debug.apk")
     val sourceApk = when {
+      customReleaseApk.exists() -> customReleaseApk
+      customDebugApk.exists() -> customDebugApk
       appReleaseApk.exists() -> appReleaseApk
       appDebugApk.exists() -> appDebugApk
       buildOutputsApk.exists() -> buildOutputsApk
       else -> null
     }
     if (sourceApk != null) {
-      val targetFile = File(releaseDir, "nalama-companion.apk")
+      val targetFile = File(releaseDir, "NalamaCompanionHealthData.APK")
       sourceApk.copyTo(targetFile, overwrite = true)
       println("Successfully copied APK to ${targetFile.absolutePath}")
     } else {
       println("No APK found to copy")
+    }
+  }
+}
+
+tasks.matching { it.name.startsWith("assemble") }.configureEach {
+  doLast {
+    val apkDir = layout.buildDirectory.dir("outputs/apk").get().asFile
+    if (apkDir.exists()) {
+      apkDir.walkTopDown().filter { it.extension.equals("apk", ignoreCase = true) && it.name != "NalamaCompanionHealthData.APK" }.forEach { apkFile ->
+        val dest = File(apkFile.parentFile, "NalamaCompanionHealthData.APK")
+        apkFile.copyTo(dest, overwrite = true)
+        println("Generated APK copied to: ${dest.absolutePath}")
+      }
     }
   }
 }

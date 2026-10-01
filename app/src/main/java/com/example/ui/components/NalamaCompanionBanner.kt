@@ -95,12 +95,8 @@ fun NalamaCompanionBanner(
                 Button(
                     onClick = {
                         try {
-                            uriHandler.openUri("https://nalama.family")
-                        } catch (_: Exception) {
-                            try {
-                                uriHandler.openUri("https://nalama.ai.studio")
-                            } catch (_: Exception) {}
-                        }
+                            uriHandler.openUri("https://nalama.web.app/")
+                        } catch (_: Exception) {}
                     },
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(
