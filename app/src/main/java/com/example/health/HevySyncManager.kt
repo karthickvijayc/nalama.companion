@@ -227,9 +227,9 @@ class HevySyncManager {
                     avgHr = effectiveAvgHr
                 )
                 val minRealisticCalories = if (effectiveDuration >= 15) {
-                    (effectiveDuration * 2.5).roundToInt()
+                    (effectiveDuration * 1.5).roundToInt()
                 } else {
-                    (effectiveDuration * 2.0).roundToInt().coerceAtLeast(15)
+                    (effectiveDuration * 1.0).roundToInt().coerceAtLeast(15)
                 }
 
                 val resolvedCalories = when {

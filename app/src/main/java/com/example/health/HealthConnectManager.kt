@@ -611,21 +611,24 @@ class HealthConnectManager(private val context: Context) {
                 val totCalResp = client.readRecords(totCalReq)
                 val sumTotCal = totCalResp.records.sumOf { it.energy.inKilocalories }.roundToInt()
                 if (sumTotCal > 0) {
-                    calories = sumTotCal
+                    val effectiveWeight = weightKg?.takeIf { it > 0.0 } ?: 70.0
+                    // Subtract estimated Basal Metabolic Rate (BMR ~1.0 kcal/kg/hr) for session duration
+                    // to prevent double-counting resting body burn in workout calories.
+                    val bmrKcal = (effectiveWeight * (durationMinutes / 60.0) * 1.0).roundToInt()
+                    calories = maxOf(sumTotCal - bmrKcal, 0)
                 }
             }
         } catch (_: Exception) {}
 
         val estimated = calculateEstimatedBiometrics(durationMinutes, weightKg, avgHr)
 
-        // Health Connect records can occasionally be incomplete/truncated (e.g. only a 5-minute segment
-        // synced before watch tracking stopped, recording ~40 kcal for an 80+ min intense resistance workout).
-        // Physiological baseline: An active workout burns at least ~2.5 kcal/min for workouts >= 15 min.
+        // Health Connect records can occasionally be incomplete/truncated (e.g. tracking stopped early).
+        // Physiological baseline: Resistance training burns at least ~1.5 kcal/min overall (including rest intervals).
         // If Health Connect calories are absent or below this minimum realistic threshold, fall back to metabolic estimation.
         val minRealisticCalories = if (durationMinutes >= 15) {
-            (durationMinutes * 2.5).roundToInt()
+            (durationMinutes * 1.5).roundToInt()
         } else {
-            (durationMinutes * 2.0).roundToInt().coerceAtLeast(15)
+            (durationMinutes * 1.0).roundToInt().coerceAtLeast(15)
         }
 
         if (calories == null || calories < minRealisticCalories) {
@@ -641,7 +644,7 @@ class HealthConnectManager(private val context: Context) {
 
     /**
      * Calculates personalized calorie estimation based on duration, body weight, and heart rate.
-     * Uses standard MET (Metabolic Equivalent of Task) equation for resistance training (MET ~ 5.5).
+     * Uses calibrated MET (Metabolic Equivalent of Task) equation for resistance training with rest intervals (MET = 3.5).
      * Energy (kcal) = MET * weightKg * (durationMinutes / 60.0)
      */
     fun calculateEstimatedBiometrics(
@@ -653,19 +656,21 @@ class HealthConnectManager(private val context: Context) {
 
         val effectiveWeight = weightKg?.takeIf { it > 0.0 } ?: 70.0
 
-        // Standard MET calculation for resistance training (Compendium of Physical Activities MET = 5.5)
-        var estCalories = (5.5 * effectiveWeight * (durationMinutes / 60.0)).roundToInt().coerceAtLeast(30)
+        // Calibrated MET calculation for strength/hypertrophy training with standard rest periods (MET = 3.5)
+        var estCalories = (3.5 * effectiveWeight * (durationMinutes / 60.0)).roundToInt().coerceAtLeast(20)
 
-        // If continuous average HR was tracked during workout, adjust intensity multiplier
+        // If continuous average HR was tracked during workout, adjust intensity multiplier conservatively.
+        // During resistance training, heart rate elevation during rest periods reflects cardiovascular recovery
+        // and vasodilation rather than continuous aerobic work, so conservative scaling avoids overestimation.
         if (avgHr != null && avgHr > 60) {
             val hrMultiplier = when {
-                avgHr >= 150 -> 1.35 // High intensity circuit/HIIT
-                avgHr >= 135 -> 1.20 // Heavy lifting / short rests
-                avgHr >= 115 -> 1.05 // Moderate resistance training
-                avgHr >= 95 -> 0.90  // Light / long rests
-                else -> 0.75
+                avgHr >= 145 -> 1.15 // High intensity circuit/supersets
+                avgHr >= 130 -> 1.08 // Heavy compound lifting / moderate rest
+                avgHr >= 115 -> 1.00 // Standard resistance training
+                avgHr >= 95  -> 0.90 // Light lifting / long rests
+                else         -> 0.80 // Very light / warm-up pace
             }
-            estCalories = (estCalories * hrMultiplier).roundToInt().coerceAtLeast(30)
+            estCalories = (estCalories * hrMultiplier).roundToInt().coerceAtLeast(20)
         }
 
         return WorkoutBiometrics(
