@@ -290,9 +290,9 @@ https://github.com/karthickvijayc/nalama.companion/releases/latest/download/Nala
 ```
 *Tapping this link in Chrome or any Android browser automatically downloads `NalamaCompanionHealthData.APK`.*
 
-### 2. Specific Tagged Version (v1.1.0)
+### 2. Specific Tagged Version (v1.1.1)
 ```text
-https://github.com/karthickvijayc/nalama.companion/releases/download/v1.1.0/NalamaCompanionHealthData.APK
+https://github.com/karthickvijayc/nalama.companion/releases/download/v1.1.1/NalamaCompanionHealthData.APK
 ```
 
 ---
@@ -310,7 +310,7 @@ To embed a direct download button on the parent web app / PWA:
   style="display: inline-flex; align-items: center; gap: 8px; background-color: #166534; color: #ffffff; padding: 12px 24px; border-radius: 9999px; text-decoration: none; font-weight: 600;"
 >
   <span>📱</span>
-  <span>Download Nalama Companion APK (v1.1.0)</span>
+  <span>Download Nalama Companion APK (v1.1.1)</span>
 </a>
 ```
 
@@ -325,7 +325,7 @@ export function DownloadCompanionButton() {
       className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-emerald-800 text-white font-semibold shadow-md hover:bg-emerald-900 transition-colors"
     >
       <span>📱</span>
-      <span>Download Nalama Companion APK (v1.1.0)</span>
+      <span>Download Nalama Companion APK (v1.1.1)</span>
     </a>
   );
 }

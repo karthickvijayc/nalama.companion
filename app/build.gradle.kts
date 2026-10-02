@@ -17,8 +17,8 @@ android {
     applicationId = "com.aistudio.nalama.healthdatacompanion"
     minSdk = 26
     targetSdk = 36
-    versionCode = 2
-    versionName = "1.1.0"
+    versionCode = 3
+    versionName = "1.1.1"
 
     buildConfigField("String", "GOOGLE_OAUTH_CLIENT_ID", "\"761288817669-6dqbjl0gt69aetb44uvldl0hne3q2a2l.apps.googleusercontent.com\"")
 
