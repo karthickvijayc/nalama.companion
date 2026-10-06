@@ -271,17 +271,27 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
                     workouts = emptyList()
                 )
             }
-            val workouts = payload.workouts
+            val baseWorkouts = payload.workouts
+            val enrichedWorkouts = if (baseWorkouts.isNotEmpty()) {
+                hevyManager.enrichWithHealthConnect(
+                    workouts = baseWorkouts,
+                    healthManager = healthManager,
+                    zoneId = zoneId
+                )
+            } else {
+                emptyList()
+            }
+            val enrichedPayload = payload.copy(workouts = enrichedWorkouts)
 
-            val csvPreview = if (workouts.isNotEmpty()) {
-                WorkoutCsvConverter.toCsvString(workouts, settings.writeMode == WriteMode.OVERWRITE)
+            val csvPreview = if (enrichedWorkouts.isNotEmpty()) {
+                WorkoutCsvConverter.toCsvString(enrichedWorkouts, settings.writeMode == WriteMode.OVERWRITE)
             } else {
                 "No workouts loaded. Configure Hevy API key in Settings."
             }
 
             _uiState.update {
                 it.copy(
-                    workoutsPayload = payload,
+                    workoutsPayload = enrichedPayload,
                     previewCsv = csvPreview
                 )
             }

@@ -148,7 +148,8 @@ class HealthSyncWorker(
             val hevyManager = HevySyncManager()
             val healthManager = HealthConnectManager(context)
             val fetchResult = hevyManager.fetchWorkouts(
-                apiKey = settings.hevyApiKey
+                apiKey = settings.hevyApiKey,
+                zoneId = zoneId
             )
 
             if (fetchResult.isFailure) {

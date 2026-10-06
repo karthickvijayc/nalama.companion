@@ -547,12 +547,26 @@ class HealthConnectManager(private val context: Context) {
         weightKg: Double? = null
     ): WorkoutBiometrics {
         val client = healthConnectClient
-        if (client == null || !hasAllPermissions()) {
+        if (client == null) {
+            return calculateEstimatedBiometrics(durationMinutes, weightKg)
+        }
+
+        val granted = try {
+            client.permissionController.getGrantedPermissions()
+        } catch (_: Exception) {
+            emptySet()
+        }
+
+        val canReadHr = granted.contains(HealthPermission.getReadPermission(HeartRateRecord::class))
+        val canReadActiveCal = granted.contains(HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class))
+        val canReadTotalCal = granted.contains(HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class))
+
+        if (!canReadHr && !canReadActiveCal && !canReadTotalCal) {
             return calculateEstimatedBiometrics(durationMinutes, weightKg)
         }
 
         val startInstant = try {
-            val parts = startTimeStr.split(":")
+            val parts = startTimeStr.trim().split(":")
             date.atTime(parts[0].toInt(), parts[1].toInt()).atZone(zoneId).toInstant()
         } catch (_: Exception) {
             null
@@ -560,7 +574,7 @@ class HealthConnectManager(private val context: Context) {
 
         val endInstant = try {
             if (!endTimeStr.isNullOrBlank()) {
-                val parts = endTimeStr.split(":")
+                val parts = endTimeStr.trim().split(":")
                 var endZoned = date.atTime(parts[0].toInt(), parts[1].toInt()).atZone(zoneId)
                 if (endZoned.toInstant().isBefore(startInstant)) {
                     endZoned = endZoned.plusDays(1)
@@ -581,35 +595,69 @@ class HealthConnectManager(private val context: Context) {
         var maxHr: Int? = null
         var calories: Int? = null
 
-        try {
-            val hrRequest = ReadRecordsRequest(
-                recordType = HeartRateRecord::class,
-                timeRangeFilter = TimeRangeFilter.between(startInstant, endInstant)
-            )
-            val hrResp = client.readRecords(hrRequest)
-            val samples = hrResp.records.flatMap { it.samples }.map { it.beatsPerMinute }
-            if (samples.isNotEmpty()) {
-                avgHr = samples.average().roundToInt()
-                maxHr = samples.maxOrNull()?.toInt()
-            }
-        } catch (_: Exception) {}
+        // Expand query window by 2 minutes on boundaries to capture records intersecting the session
+        val queryStart = startInstant.minusSeconds(120)
+        val queryEnd = endInstant.plusSeconds(120)
+        val queryTimeRange = TimeRangeFilter.between(queryStart, queryEnd)
 
-        try {
-            val actCalReq = ReadRecordsRequest(
-                recordType = ActiveCaloriesBurnedRecord::class,
-                timeRangeFilter = TimeRangeFilter.between(startInstant, endInstant)
-            )
-            val actCalResp = client.readRecords(actCalReq)
-            val sumActCal = actCalResp.records.sumOf { it.energy.inKilocalories }.roundToInt()
-            if (sumActCal > 0) {
-                calories = sumActCal
-            } else {
+        if (canReadHr) {
+            try {
+                val hrRequest = ReadRecordsRequest(
+                    recordType = HeartRateRecord::class,
+                    timeRangeFilter = queryTimeRange
+                )
+                val hrResp = client.readRecords(hrRequest)
+                // Filter samples to those within the workout window [startInstant, endInstant]
+                val boundedSamples = hrResp.records.flatMap { it.samples }
+                    .filter { sample ->
+                        !sample.time.isBefore(startInstant) && !sample.time.isAfter(endInstant)
+                    }
+                    .map { it.beatsPerMinute }
+
+                if (boundedSamples.isNotEmpty()) {
+                    avgHr = boundedSamples.average().roundToInt()
+                    maxHr = boundedSamples.maxOrNull()?.toInt()
+                } else {
+                    // Fallback to all samples in intersecting records if exact timestamps are offset
+                    val allSamples = hrResp.records.flatMap { it.samples }.map { it.beatsPerMinute }
+                    if (allSamples.isNotEmpty()) {
+                        avgHr = allSamples.average().roundToInt()
+                        maxHr = allSamples.maxOrNull()?.toInt()
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        if (canReadActiveCal) {
+            try {
+                val actCalReq = ReadRecordsRequest(
+                    recordType = ActiveCaloriesBurnedRecord::class,
+                    timeRangeFilter = queryTimeRange
+                )
+                val actCalResp = client.readRecords(actCalReq)
+                val sumActCal = actCalResp.records
+                    .filter { rec ->
+                        !rec.endTime.isBefore(startInstant) && !rec.startTime.isAfter(endInstant)
+                    }
+                    .sumOf { it.energy.inKilocalories }.roundToInt()
+                if (sumActCal > 0) {
+                    calories = sumActCal
+                }
+            } catch (_: Exception) {}
+        }
+
+        if (calories == null && canReadTotalCal) {
+            try {
                 val totCalReq = ReadRecordsRequest(
                     recordType = TotalCaloriesBurnedRecord::class,
-                    timeRangeFilter = TimeRangeFilter.between(startInstant, endInstant)
+                    timeRangeFilter = queryTimeRange
                 )
                 val totCalResp = client.readRecords(totCalReq)
-                val sumTotCal = totCalResp.records.sumOf { it.energy.inKilocalories }.roundToInt()
+                val sumTotCal = totCalResp.records
+                    .filter { rec ->
+                        !rec.endTime.isBefore(startInstant) && !rec.startTime.isAfter(endInstant)
+                    }
+                    .sumOf { it.energy.inKilocalories }.roundToInt()
                 if (sumTotCal > 0) {
                     val effectiveWeight = weightKg?.takeIf { it > 0.0 } ?: 70.0
                     // Subtract estimated Basal Metabolic Rate (BMR ~1.0 kcal/kg/hr) for session duration
@@ -617,8 +665,8 @@ class HealthConnectManager(private val context: Context) {
                     val bmrKcal = (effectiveWeight * (durationMinutes / 60.0) * 1.0).roundToInt()
                     calories = maxOf(sumTotCal - bmrKcal, 0)
                 }
-            }
-        } catch (_: Exception) {}
+            } catch (_: Exception) {}
+        }
 
         val estimated = calculateEstimatedBiometrics(durationMinutes, weightKg, avgHr)
 
