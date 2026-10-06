@@ -73,7 +73,10 @@ data class HealthSyncUiState(
     val diagnosticTestResult: DriveDiagnosticTestResult? = null,
     val showDiagnosticsDialog: Boolean = false,
     val cacheSummary: CacheSummary = CacheSummary(0, 0, 0L, emptyList()),
-    val authError: String? = null
+    val authError: String? = null,
+    val isCheckingUpdate: Boolean = false,
+    val latestReleaseInfo: com.example.update.AppReleaseInfo? = null,
+    val updateCheckMessage: String? = null
 )
 
 class HealthSyncViewModel(application: Application) : AndroidViewModel(application) {
@@ -1132,5 +1135,46 @@ class HealthSyncViewModel(application: Application) : AndroidViewModel(applicati
 
     fun dismissInitialBulkExportPrompt() {
         prefs.recordInitialBulkExportCompleted()
+    }
+
+    fun checkForUpdatesManual() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isCheckingUpdate = true, updateCheckMessage = null) }
+            val updateManager = com.example.update.AppUpdateManager()
+            val result = updateManager.checkForLatestRelease(com.example.BuildConfig.VERSION_NAME)
+            if (result.isSuccess) {
+                val release = result.getOrThrow()
+                prefs.recordUpdateCheck(
+                    timestamp = System.currentTimeMillis(),
+                    latestVersion = release.tagName,
+                    downloadUrl = release.downloadUrl
+                )
+                val message = if (release.isNewer) {
+                    "New version ${release.tagName} is available!"
+                } else {
+                    "You are using the latest version (${com.example.BuildConfig.VERSION_NAME})."
+                }
+                _uiState.update {
+                    it.copy(
+                        isCheckingUpdate = false,
+                        latestReleaseInfo = release,
+                        updateCheckMessage = message
+                    )
+                }
+            } else {
+                val error = result.exceptionOrNull()?.message ?: "Failed to check for updates"
+                _uiState.update {
+                    it.copy(
+                        isCheckingUpdate = false,
+                        updateCheckMessage = error
+                    )
+                }
+            }
+        }
+    }
+
+    fun updateAutoUpdateCheck(enabled: Boolean) {
+        prefs.updateAutoUpdateCheckEnabled(enabled)
+        com.example.update.AppUpdateScheduler.schedulePeriodicUpdateCheck(app, enabled)
     }
 }

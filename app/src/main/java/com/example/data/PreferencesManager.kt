@@ -32,7 +32,12 @@ data class AppSettings(
     val hasCompletedInitialBulkExport: Boolean = false,
     val archiveMaxDays: Int = 180,                      // Active file retains max 180 days, older moved to [file]_YYYY
     val googleOAuthAccessToken: String = "",
-    val bulkHistoryYears: Int = 1                       // User configurable: 1y, 2y, 3y, 4y, 5y
+    val bulkHistoryYears: Int = 1,                      // User configurable: 1y, 2y, 3y, 4y, 5y
+    val autoUpdateCheckEnabled: Boolean = true,
+    val lastUpdateCheckTime: Long = 0L,
+    val latestAvailableVersion: String = "",
+    val latestReleaseDownloadUrl: String = "",
+    val lastNotifiedUpdateVersion: String = ""
 )
 
 class PreferencesManager(context: Context) {
@@ -80,7 +85,12 @@ class PreferencesManager(context: Context) {
             hasCompletedInitialBulkExport = prefs.getBoolean(KEY_HAS_COMPLETED_INITIAL_BULK_EXPORT, false),
             archiveMaxDays = prefs.getInt(KEY_ARCHIVE_MAX_DAYS, 180),
             googleOAuthAccessToken = prefs.getString(KEY_GOOGLE_OAUTH_ACCESS_TOKEN, "") ?: "",
-            bulkHistoryYears = prefs.getInt(KEY_BULK_HISTORY_YEARS, 1).coerceIn(1, 5)
+            bulkHistoryYears = prefs.getInt(KEY_BULK_HISTORY_YEARS, 1).coerceIn(1, 5),
+            autoUpdateCheckEnabled = prefs.getBoolean(KEY_AUTO_UPDATE_CHECK_ENABLED, true),
+            lastUpdateCheckTime = prefs.getLong(KEY_LAST_UPDATE_CHECK_TIME, 0L),
+            latestAvailableVersion = prefs.getString(KEY_LATEST_AVAILABLE_VERSION, "") ?: "",
+            latestReleaseDownloadUrl = prefs.getString(KEY_LATEST_RELEASE_DOWNLOAD_URL, "") ?: "",
+            lastNotifiedUpdateVersion = prefs.getString(KEY_LAST_NOTIFIED_UPDATE_VERSION, "") ?: ""
         )
     }
 
@@ -238,6 +248,29 @@ class PreferencesManager(context: Context) {
         _settings.value = _settings.value.copy(bulkHistoryYears = safeYears)
     }
 
+    fun updateAutoUpdateCheckEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_UPDATE_CHECK_ENABLED, enabled).apply()
+        _settings.value = _settings.value.copy(autoUpdateCheckEnabled = enabled)
+    }
+
+    fun recordUpdateCheck(timestamp: Long, latestVersion: String, downloadUrl: String) {
+        prefs.edit()
+            .putLong(KEY_LAST_UPDATE_CHECK_TIME, timestamp)
+            .putString(KEY_LATEST_AVAILABLE_VERSION, latestVersion)
+            .putString(KEY_LATEST_RELEASE_DOWNLOAD_URL, downloadUrl)
+            .apply()
+        _settings.value = _settings.value.copy(
+            lastUpdateCheckTime = timestamp,
+            latestAvailableVersion = latestVersion,
+            latestReleaseDownloadUrl = downloadUrl
+        )
+    }
+
+    fun recordUpdateNotified(version: String) {
+        prefs.edit().putString(KEY_LAST_NOTIFIED_UPDATE_VERSION, version).apply()
+        _settings.value = _settings.value.copy(lastNotifiedUpdateVersion = version)
+    }
+
     companion object {
         private const val KEY_HEALTH_CONNECT_ENABLED = "key_health_connect_enabled"
         private const val KEY_HEVY_ENABLED = "key_hevy_enabled"
@@ -261,5 +294,10 @@ class PreferencesManager(context: Context) {
         private const val KEY_ARCHIVE_MAX_DAYS = "key_archive_max_days"
         private const val KEY_GOOGLE_OAUTH_ACCESS_TOKEN = "key_google_oauth_access_token"
         private const val KEY_BULK_HISTORY_YEARS = "key_bulk_history_years"
+        private const val KEY_AUTO_UPDATE_CHECK_ENABLED = "key_auto_update_check_enabled"
+        private const val KEY_LAST_UPDATE_CHECK_TIME = "key_last_update_check_time"
+        private const val KEY_LATEST_AVAILABLE_VERSION = "key_latest_available_version"
+        private const val KEY_LATEST_RELEASE_DOWNLOAD_URL = "key_latest_release_download_url"
+        private const val KEY_LAST_NOTIFIED_UPDATE_VERSION = "key_last_notified_update_version"
     }
 }

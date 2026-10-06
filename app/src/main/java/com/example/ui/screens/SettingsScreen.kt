@@ -61,6 +61,8 @@ fun SettingsScreen(
     onUpdateBulkHistoryYears: (Int) -> Unit = {},
     onOpenDiagnostics: () -> Unit = {},
     onClearCache: () -> Unit = {},
+    onCheckForUpdates: () -> Unit = {},
+    onToggleAutoUpdateCheck: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var hevyApiKeyInput by remember(uiState.settings.hevyApiKey) { mutableStateOf(uiState.settings.hevyApiKey) }
@@ -933,6 +935,180 @@ fun SettingsScreen(
                         )
                     }
                 }
+            }
+        }
+
+        // Section: App Updates
+        SettingsCard(title = "App Updates", icon = Icons.Default.SystemUpdate) {
+            val currentVersion = com.example.BuildConfig.VERSION_NAME
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Current Version",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "v$currentVersion (Installed)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                FilledTonalButton(
+                    onClick = onCheckForUpdates,
+                    enabled = !uiState.isCheckingUpdate,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    if (uiState.isCheckingUpdate) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Checking...", fontSize = 12.sp)
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Check Now", fontSize = 12.sp)
+                    }
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Check in Background",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Periodically checks for new releases every 2 days and notifies you",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = uiState.settings.autoUpdateCheckEnabled,
+                    onCheckedChange = onToggleAutoUpdateCheck
+                )
+            }
+
+            val releaseInfo = uiState.latestReleaseInfo
+            val isNewer = releaseInfo?.isNewer == true
+
+            if (isNewer && releaseInfo != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.NewReleases,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "New Version Available: ${releaseInfo.tagName}",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+
+                        if (releaseInfo.releaseNotes.isNotBlank()) {
+                            Text(
+                                text = releaseInfo.releaseNotes.take(200) + if (releaseInfo.releaseNotes.length > 200) "..." else "",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontSize = 11.5.sp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                            )
+                        }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Button(
+                                onClick = {
+                                    try {
+                                        uriHandler.openUri(releaseInfo.downloadUrl)
+                                    } catch (_: Exception) {}
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Download,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Download APK", fontSize = 12.sp)
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    try {
+                                        uriHandler.openUri(releaseInfo.htmlUrl)
+                                    } catch (_: Exception) {}
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Release Notes", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            } else if (uiState.updateCheckMessage != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = uiState.updateCheckMessage ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(10.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else if (uiState.settings.lastUpdateCheckTime > 0) {
+                val formattedLastCheck = java.text.SimpleDateFormat(
+                    "MMM dd, yyyy HH:mm",
+                    java.util.Locale.getDefault()
+                ).format(java.util.Date(uiState.settings.lastUpdateCheckTime))
+                Text(
+                    text = "Last checked: $formattedLastCheck • Up to date",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 

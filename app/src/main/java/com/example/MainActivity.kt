@@ -361,6 +361,8 @@ class MainActivity : ComponentActivity() {
                                     onDisconnectGoogle = { viewModel.disconnectGoogleAccount() },
                                     onOpenDiagnostics = { viewModel.openDiagnosticsDialog() },
                                     onClearCache = { viewModel.clearSyncCache() },
+                                    onCheckForUpdates = { viewModel.checkForUpdatesManual() },
+                                    onToggleAutoUpdateCheck = { viewModel.updateAutoUpdateCheck(it) },
                                     modifier = Modifier.padding(innerPadding)
                                 )
                                 1 -> DashboardScreen(

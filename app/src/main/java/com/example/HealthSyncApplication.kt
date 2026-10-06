@@ -27,6 +27,10 @@ class HealthSyncApplication : Application() {
                 intervalMinutes = settings.syncIntervalMinutes,
                 autoSyncEnabled = settings.autoSyncEnabled
             )
+            com.example.update.AppUpdateScheduler.schedulePeriodicUpdateCheck(
+                context = this,
+                enabled = settings.autoUpdateCheckEnabled
+            )
         } catch (_: Throwable) {
             // WorkManager may be uninitialized in test or preview environments
         }
